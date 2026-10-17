@@ -16,6 +16,27 @@ metadata:
 
 **CRITICAL — 开始前 MUST 先读取 [`../arkcli-shared/SKILL.md`](../arkcli-shared/SKILL.md)。**
 
+## 已有接入点的客户端接入故障
+
+用户已有平台 Key、模型和 Endpoint，却在 CC Switch / Claude Code 调用失败时，保留原资源链，按以下三项交付排障结果。
+
+**1. 分开列事实。** 用两行记录“原客户端”与“本次直连测试”：实际 Base URL/协议、Key 来源（仅脱敏身份）、模型位、状态码/错误/RequestId及尚缺项。配置未读取或请求未捕获就写未知。`Running`、Key `Active`、近期用量与另一条 HTTP 200 不能证明用户外部客户端使用同一 Key 或平台侧所有路径正常；只说明本次受测组合的结果。图片测试不能写成视频测试，单次探针没有“复现率最高”的统计意义。
+
+**2. 核对同一条资源链。** Base URL 保留实际 Region/环境，并按客户端文档确认它追加的路径；不要因发现套餐订阅就切换用户的既有平台链路。
+
+| 用户选择的路径 | Anthropic Base URL | Key 来源 |
+| --- | --- | --- |
+| 已有平台 Key + 文本 Endpoint | `.../api/compatible` | 本次平台普通 Key；模型位保留用户的 `ep-...` 或经核验的完整调用 ID |
+| 个人 Agent Plan | `.../api/plan` | `RealAgentPlanPersonal` 专属 Key |
+| 个人 Coding Plan | `.../api/coding` | 与 platform 共用普通 Key 池，并核对该用户的套餐准入 |
+| 团队 Agent/Coding Plan | 相应 `/api/plan` 或 `/api/coding` | 对应有效席位 Key |
+
+OpenAI `/api/v3` 及套餐 `/v3` 是另一协议入口，不能直接当 Anthropic Base URL。只有用户选择套餐路径时再按 [plans](../arkcli-plans/SKILL.md) 展开，不为诊断切 Profile、轮换 Key 或重建资源。请求未发出、环境变量为空、401、404分别按原报文核查；不把它们都归为“Key失效”。
+
+**3. 给出可验证的下一步。** 先核对用户当前启用配置与新会话 `/status` 显示的 Base URL、Model 和认证来源，只检查凭证是否已赋值，不打印值。客户端模型位/fallback 行为以该版本实际配置或文档为准：“可能 fallback”仍是待核查条件，不能扩大成必然失败或自行补出标题生成等触发场景；直连404也不能代写客户端“完全无响应”。
+
+用户要求且授权真实试调用时，提供一次与原客户端相同协议的最小请求：平台兼容路径为 `POST .../api/compatible/v1/messages`，保留原调用 ID，用 `messages` 和明确的小 `max_tokens` 预算；Key由获准的受控进程注入，不放入聊天、可见argv或日志。记录状态码、非敏感错误/RequestId与实际响应；不要用默认走Responses的`+chat`当作Anthropic链路自证。未获准则交付此检查步骤，标注尚未执行。直连成功而原客户端仍失败时，继续比较实际生效配置、会话和网络/代理，结论保持原故障尚未定位，不承诺换配置必然修好。
+
 ## 使用原则
 
 - 推理接入点相关需求优先使用 `arkcli infer endpoint ...`

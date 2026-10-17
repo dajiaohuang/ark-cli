@@ -1,5 +1,12 @@
 # 接口链路与 Gap
 
+## 本期接入边界
+
+- BYOK 的模型字段和每次请求凭证已接入，参数及边界见 [byok.md](byok.md)。火山已提供 Dream create/list/get/cancel/wait，参数、单次创建和异步状态见 [dream.md](dream.md)；BytePlus 暂不支持 Dream。
+- Todo Write 复用 `--tool`，不属于基础 toolset，也不需要 Models。启用前读 [Todo 配置](todo-write.md)，包含权限前提、仅开启 Todo 的完整条目及保留其他工具的更新方式。
+- 国内搜索提供方切换不新增 CLI flag，也不擅自把已有 web_search 改成其他工具；以回读配置和实际工具结果验证。未知工具结果与事件类型应保留原始 JSON，不因不能 pretty 展示而丢弃。
+- MA 开通继续走已有服务开通检查和确认；不新增未经确认的开通 Action。trace、原始 kernel event、main/subagent header、出网白名单和 Nacos/TLS 的内部改动不扩展成用户命令；PE tool 的公开契约未确认。
+
 ## 接口链路
 
 - Agent: `CreateAgent` / `GetAgent` / `ListAgents` / `UpdateAgent` / `DeleteAgent` / `ListAgentVersions`
@@ -27,7 +34,7 @@
 - `+debug` 已聚合 session/events/resources/threads；`+export` 已导出可见诊断包。
 - `+new-agent --fork` 已支持复制已有 Agent，并默认用 `copy-<source-name>` 命名。
 - `+iterate` 已支持 GetAgent 当前版本 -> 可选 UpdateAgent -> CreateSession -> `--message` one-shot / TTY REPL；`--environment-id/--env-id` 是可选参数，未传时真实执行会用 `ListEnvironments` 自动选择当前项目最近创建的 Environment；没有可用环境才要求用户创建或显式传入。
-- 默认 Tools 已对齐当前实现：不传 `--tool` 时发送 `agent_toolset_20260701`，含 bash/read/write/edit/glob/grep/web_fetch/web_search；传 `--tool` 时按完整数组全量覆盖。
+- 火山新建 Agent 不传 `--tool` 时发送 `agent_toolset_20260916`，含 bash/read/write/edit/glob/grep/web_fetch/web_search；传 `--tool` 时按完整数组全量覆盖。旧版本不自动升级；BytePlus 默认仍为 `agent_toolset_20260701`。
 
 ## 当前 Gap
 

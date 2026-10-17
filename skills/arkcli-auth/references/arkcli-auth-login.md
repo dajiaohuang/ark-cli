@@ -69,7 +69,7 @@ arkcli auth login --no-browser [--code X]
   - 完成登录后，浏览器页面显示一段 **base64 字符串**（不是 URL，不是 6 位数字）
   - 把这段 base64 串粘贴回 CLI 提示符 `授权码:` 处即可
 - 登录成功后凭证写入 identity store，并绑定或切换到对应 tenant 的 profile（同 tenant 重登更新当前 profile 的 identity_key；跨 tenant 登录创建以 tenant 命名的新 profile 并设为 default）
-- `arkcli auth apikey` 只用于选择普通 API Key；`arkcli auth apikey create` 只用于创建、验证并保存普通 API Key 到当前身份，非交互环境收到 `requires_confirmation` 后必须走共享 Skill 的宿主确认流程。已有 Profile 要切换默认 Key 时仍用 `profile keys refresh/use`。这些命令都不能修复 Agent Plan 个人版专属 Key 或团队版 Running 席位 Key，普通池里有 Key 不代表 Plan profile 可用。
+- `arkcli auth apikey` 只用于选择普通 API Key；`arkcli auth apikey create` 只用于创建、验证并保存普通 API Key 到当前身份，非交互环境收到 `requires_confirmation` 后必须走共享 Skill 的宿主确认流程。已有 Profile 要切换默认 Key 时仍用 `profile apikey refresh/use`。这些命令都不能修复 Agent Plan 个人版专属 Key 或团队版 Running 席位 Key，普通池里有 Key 不代表 Plan profile 可用。
 - SSO 首次登录会按 profile 类型从不同来源拉 Key，并把选中的 Project 写入对应 profile：`platform` / `coding-plan` 个人版走普通池，`agent-plan` 个人版走 `Scene=RealAgentPlanPersonal`，团队版走 `GetSeatInfo.Result.ApiKey`。
 - 真人 TTY 下，普通池为空会询问是否创建一把全资源 Key；Project 使用当前具体值，账号全部资源/空值回退 `default`，名称与控制台一致为 `api-key-YYYYMMDDHHmmss`。确认后只写一次，再最多读 3 次状态；拒绝或非 TTY 时不创建。
 - Agent Plan 个人版若专属记录存在但状态非 Active（如 `Restricted`），TTY 会说明旧 Key 将立即失效并询问是否轮转。确认后只轮转一次，再最多读 3 次状态；第一轮 Active 即结束。无专属记录、仍有 Active 记录但明文不可读、拒绝或非 TTY 时不轮转。

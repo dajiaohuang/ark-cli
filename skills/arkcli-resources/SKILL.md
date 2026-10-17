@@ -23,7 +23,7 @@ metadata:
 - 列表是资源发现结果，可能受 project、创建者和模态过滤；列表为空或当前 default 未出现在 items 中，不等于指定 Endpoint 不存在或不可调用。
 - 只读核对身份或默认资源、没有指定精确资源 ID 且列表为空时，报告已确认事实和信息缺口，结束核对；不要为补齐字段转到 `profile show/list/keys list`。空列表不是配置修复或 Key 同步的授权。
 - `arkcli resources resolve <ep-id>` 先按 `endpoint_model_type` 判定真实绑定。Custom Model Endpoint 的 `model_id` / `custom_model_id` 必须保持 `cm-...` 身份，基础模型只通过 `base_model_*` 表达 lineage 与能力来源；不按 ID/模型名子串猜用途
-- 派发逻辑跟 profile.Type 走：platform → `ListEndpoints`，agent-plan / coding-plan → 对应 plan API
+- 派发逻辑跟 profile.Type 走：platform → `ListEndpoints`，agent-plan / coding-plan 的 text → 对应 `VirtualModelID` API，并携带 profile 的 `Edition + PlanTier(BizInfo)`
 - `agent-plan-team` 三模态使用团队席位 Key + 套餐模型；`coding-plan-team` 只有 text 使用团队席位 Key，image/video 虽可看到 platform Endpoint，但调用还需要后付费 API Key
 - `resources list` 区分“账号可见”与“当前 profile 可调用”：读取 `invocable` 与 `required_overrides`，不要看到 ID 就断言当前凭证可用
 - `invocable=true` 只说明 Profile/资源类型兼容，不证明 API Key 未失效、具有权限或额度。凭证归属与数据面真实调用结果要分开核验，元数据不能代替请求成功。
@@ -110,7 +110,7 @@ metadata:
 ## 常见错误
 
 - coding-plan 的 image/video 使用 platform Endpoint 池，调用前核对后付费 Key。列表为空时检查查询 scope/权限，已有精确目标则先解析；创建资源是另一个用户意图，转 Deploy Skill 处理，不由空列表自动触发。
-- `coding-plan resources list: 缺 AccountID (请先 arkcli auth login)` → 仅 text 路径需要 AccountID; SSO 没登录或 token 解析时 claims.Sub 为空, 重新走 `arkcli auth login volc-sso`
+- `plan profile is missing an active profile name` / `load plan tier ...` → 当前 Plan profile 缺少可用于 `BizInfo` 的持久套餐档位；先用 `arkcli profile show` 核对，再按 Profile Skill 刷新或重建该 profile，不要发无套餐范围的模型查询
 - `ListEndpoints: NotLogin / Unauthorized` → 登录态/STS 过期 / `--profile X` 的 X 没在 identity store 里有 token；先 `auth login`
 - `unsupported profile type "X" for resources list` → 按共享规则核对当前有效上下文，再转 Config/Profile Skill 排查；不得未经用户意图重建或修改 Profile。
 

@@ -144,7 +144,7 @@ npm install -g @volcengine/ark-cli
 | `configuration.api_key`           | 当前 apikey 的**服务端校验**结果（未验证时字段缺失） |
 | `configuration.api_key.key_masked`| 打码后的 apikey（如 `ark-****7364`；明文不进 JSON） |
 | `configuration.api_key.status`    | `active` / `disabled` / `notfound` / `unknown`（与 `arkcli auth status` 归一化后同款） |
-| `configuration.api_key.refresh_hint` | 非 active 时的刷新命令（`arkcli profile keys refresh`） |
+| `configuration.api_key.refresh_hint` | 非 active 时的刷新命令（`arkcli profile apikey refresh`） |
 | `configuration.verified`          | 是否成功完成在线校验                          |
 | `configuration.reason`            | `verified=false` 时的具体原因                 |
 
@@ -158,8 +158,8 @@ npm install -g @volcengine/ark-cli
 **按 api_key.status 修复**：
 
 - `active` → 无需处理
-- `disabled` → 本地 key 在服务端已被停用 → `arkcli profile keys refresh` 拉最新 active key
-- `notfound` → 本地 key 在服务端已删除（key rotation / user 手动删）→ 同上 `arkcli profile keys refresh`；仍不行走 `arkcli auth apikey` 重选
+- `disabled` → 本地 key 在服务端已被停用 → `arkcli profile apikey refresh` 拉最新 active key
+- `notfound` → 本地 key 在服务端已删除（key rotation / user 手动删）→ 同上 `arkcli profile apikey refresh`；仍不行走 `arkcli auth apikey` 重选
 - `unknown` → 服务端匹配上但状态字段异常，先 `arkcli auth status` 看详情
 
 **按 profile_expired 修复**：
@@ -182,8 +182,8 @@ npm install -g @volcengine/ark-cli
 | `connectivity.clock_skew.ok=false`                     | fail   | 按 `hint` 里的平台命令同步 NTP；不修则 AK/SK 请求会持续报签名类错误                   |
 | `auth.logged_in=false`（credential_state=expired）     | fail   | SSO 过期，跳 [`arkcli-auth`](../../arkcli-auth/SKILL.md) 走 `arkcli auth login` 刷新  |
 | `auth.logged_in=false`（credential_state=absent）      | fail   | 从未登录 / 已 logout，跳 `arkcli-auth` 登录                                          |
-| `configuration.api_key.status=disabled`                | fail   | 本地 apikey 被停用 → `arkcli profile keys refresh`                                    |
-| `configuration.api_key.status=notfound`                | fail   | 本地 apikey 服务端已删 → `arkcli profile keys refresh`；仍不行 `arkcli auth apikey` 重选 |
+| `configuration.api_key.status=disabled`                | fail   | 本地 apikey 被停用 → `arkcli profile apikey refresh`                                    |
+| `configuration.api_key.status=notfound`                | fail   | 本地 apikey 服务端已删 → `arkcli profile apikey refresh`；仍不行 `arkcli auth apikey` 重选 |
 | `configuration.profile_expired=true`                   | fail   | 套餐/席位到期，控制台续订                                                             |
 | `configuration.verified=false` + `reason=describe status: <err>` | warn   | 服务端 ListApiKeys 打不通（网络/权限），一般是临时故障，重试即可                     |
 
@@ -191,7 +191,7 @@ npm install -g @volcengine/ark-cli
 
 1. **一句话结论**：CLI 是否可用 —— 拆成"网络通了 + 时钟正常 + 已登录 + apikey 服务端仍有效"四个"是/否"。
 2. **关键问题**：摘 fail 级的 finding，一次说一个。多个 fail 同时命中时按 `connectivity → auth → configuration → installation` 顺序引导用户修（前面 block 掉后面：网络挂了谈登录没意义；未登录谈 apikey 校验没意义）。
-3. **修复命令**：**先给用户看、等确认**再让用户执行。特别是 `sudo` 类命令必须让用户明确同意；`arkcli profile keys refresh` 也一样先展示等确认。
+3. **修复命令**：**先给用户看、等确认**再让用户执行。特别是 `sudo` 类命令必须让用户明确同意；`arkcli profile apikey refresh` 也一样先展示等确认。
 4. **下一步**：修完让用户重跑 `arkcli doctor` 确认闭环；确认没问题后再引导他们跑真实业务命令（`doctor account` / `doctor model` / 等）。
 
 ## 安全与边界

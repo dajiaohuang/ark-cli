@@ -85,7 +85,7 @@ description: 使用 ArkCLI 创建、查询和管理模型精调训练任务，�
 - 价格查询的 `--model` 使用权威基础模型名，不把带版本的拼接 ID 当名称；需要精确版本时用当前 help 支持的独立版本参数。能力、超参、价格与 create 必须对应同一训练方法。
 - DPO / DPO-LoRA 不机械继承 SFT 的数据容错与 shuffle 参数；只有该模型/类型的当前配置明确支持时才传。超参名和值按实时 schema，不能照抄历史 `dpo_beta`，也不能把当前已注册的 `--beta` 误说成不存在。
 - 数据必须是用户提供或明确授权的真实文件、TOS URI、Dataset/preset 引用；占位 bucket/path 只用于说明，不发真实提交。缺数据就请求补充。
-- 本地 `create --dry-run` 不需要以 `--yes` 绕过，也不校验远端 TOS 存在性；在线数据校验、费用 estimate 和真实提交分别报告，不把任一步成功当成训练已创建。
+- `create` 不支持本地 `--dry-run`。在线 `--estimate` 会上传本地训练集和验证集，须遵守上传确认规则；训练 token 估算不包含验证集。在线校验、费用估算和真实提交分别报告，不把估算成功当成训练已创建。
 
 - 用户给出模型名和训练类型询问“精调/SFT/LoRA 价格”时，首选且必须执行 `arkcli train finetune pricing --model <model> --type <type>`。不要改走通用 `arkcli pricing models`：通用账单目录不会按目标模型交叉校验训练方法能力。
 - 显式选择训练方法时，必须用精确的模型版本调用 `models finetune-config <model> <version> --type <type>`。该命令会先按同版本 `FinetuneTypes` 校验能力；不支持时停止，不继续询价、estimate 或创建任务。
@@ -95,6 +95,8 @@ description: 使用 ArkCLI 创建、查询和管理模型精调训练任务，�
 - 使用稳定资源组前，必须用与 create 完全相同的模型、版本、训练类型和超参数执行 `train finetune resource-group list`。只有 `allowed=true` 且 `matched=true` 的资源组 ID 才能传给 `create --resource-group`；ID 是不透明字符串，必须按查询结果原样传入；有多个匹配项时让用户选择。
 
 ## 守卫与通用执行规则
+
+维护者回归用例见 [`references/evals.md`](references/evals.md)。
 
 1. 运行 `arkcli auth status`，认证失败时按 shared skill 恢复。
 2. 读操作可直接执行；上传文件、创建任务、产生费用和破坏性操作必须遵守确认规则。

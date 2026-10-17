@@ -42,12 +42,16 @@
 
 ## 自定义 DSL 造成的退化
 
-已发布 Markdown 保留文档站自定义标签（`<Card>` / `<Columns>` / `<ColumnsItem>` /
+同路径 `.md` 的常见排版已序列化为标准 Markdown：提示引用块、
+`**选项：…**` 并列小节和标准链接。提示引用块里的前提、限制与普通正文
+同等重要；并列选项按用户场景选取，不合并成一个连续流程。
+
+旧 snapshot 和部分内嵌内容仍可能保留文档站自定义标签（`<Card>` / `<Columns>` / `<ColumnsItem>` /
 `<Tabs>` / `<Tab>` / `<Note>` / `<Tip>` / `<Warning>` / `<Danger>` / `<APILink>` /
 `<Attachment>` / `<RenderMd>` / `<span id>`，以及尾部带 `{target="_self"}`
 属性块的内联链接）。CLI 不降级它们。
 
-后果与处置：
+仍保留原始标签时的后果与处置：
 
 - **`--section` 可能失效**：自定义标签里的标题不进 Markdown AST，会触发
   `section_unavailable`。→ 改读全文。

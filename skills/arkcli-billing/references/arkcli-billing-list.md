@@ -34,8 +34,11 @@ arkcli billing list --start 2026-05 --apikey-sid apikey-... # advanced, 跳过�
 arkcli billing list --start 2026-05 --split-dim endpoint    # 每个 EP 各花了多少
 arkcli billing list --start 2026-05 --split-dim apikey      # 每把 key 各花了多少
 
-# 我自己的费用 (SSO 子用户视角)
-arkcli billing list --start 2026-05 --mine                  # 默认 --mine-by=endpoint (对齐 usage stats)
+# 我的调用费用：本人当前 Active API Key 归属 (SSO 子用户视角)
+arkcli billing list --start 2026-05 --mine --mine-by=apikey
+
+# 我部署的接入点上的费用，可能包含他人调用；CLI 默认也是此维度
+arkcli billing list --start 2026-05 --mine --mine-by=endpoint
 
 # 其他过滤
 arkcli billing list --start 2026-05 --product ark_subscription  # 看订阅类账单
@@ -49,7 +52,7 @@ arkcli billing list --start 2026-05 --ignore-zero
 |------|---|------|
 | `--start` | **是** | 单个账期 `YYYY-MM` (距今 24 个月内) |
 | `--end` | 否 | 范围终点 `YYYY-MM` (闭区间,省略 = 单月,最多 24 个月) |
-| `--day` | 否 | 账单日 `YYYY-MM-DD`,**仅 `--interval=day\|detail` 生效**,不兼容 `--end` |
+| `--day` | 否 | 账单日 `YYYY-MM-DD`，必须属于 `--start` 的月份，**仅 `--interval=day\|detail` 生效**，不能与跨月 `--end` 范围组合 |
 | `--interval` | 否 | `month` (默认) / `day` / `detail` |
 | `--endpoint` / `--apikey` / `--apikey-sid` | 否 | 单值 scope,三方互斥 (SplitItemID 单值)。`--apikey ark-*` 自动经服务端反查成 SID;`--apikey-sid` 跳过反查 |
 | `--split-dim` | 否 | 账号维度切片: `apikey` / `endpoint`。**显式 scope 已隐含维度,split-dim 必须一致或不传** |
@@ -60,7 +63,7 @@ arkcli billing list --start 2026-05 --ignore-zero
 | `--billing-mode` | 否 | `1` 包年包月 / `2` 按量 / `3` 合同 / `4` 履约 |
 | `--ignore-zero` | 否 | 跳过折后价 = 0 的行 |
 | `--mine` | 否 | 仅看当前 SSO 子用户名下资源的账单。维度由 `--mine-by` 决定。**跟 `--endpoint` / `--apikey` / `--apikey-sid` / `--split-dim` 互斥**。订阅类不含 (没 IAM 归属) |
-| `--mine-by` | 否 | `endpoint` (默认,**infra ownership** — 我部署的 EP 上的账单,含他人调;跟 usage stats 默认对齐) / `apikey` (**cost causation** — 我创建的 key 产生的账单)。两视图不可加和,前者按 infra 归集后者按 payer 归集 |
+| `--mine-by` | 否 | `endpoint` (默认,**infra ownership** — 我部署的 EP 上的账单,含他人调;跟 usage stats 默认对齐) / `apikey` (**Key 归属** — 当前列出的本人 Active Key 产生的账单)。两视图选择的资源不同，不能相加或互相替代；后者不是 wire PayerID，也不证明每次调用都由本人发起 |
 | `--limit` / `--offset` | 否 | 分页模式 (Limit 1-300,wire 硬上限),单页直返。在 fan-out 时是 **per-fan-out 各 N 行** (跨月 `--end` / `--mine` 多资源),`partial_failures[]` 标 `windowed sample` |
 | `--output` | 否 | 写完整 JSON (items + summary + partial_failures) 到 FILE,stdout 只剩 metadata 不爆 context。自动放宽内部 cap 到 300k 行 |
 
@@ -81,12 +84,16 @@ Volc 默认使用二进制内置的 9 个 API Key 可分账产品白名单，已
 
 **`--mine-by=endpoint` 跨产品覆盖**: SplitItemID `ep-...` 是跨产品 unique 主键,`+deploy` 出来的 endpoint 账单会落在不同 Product 字段下 (LLM → `ark_bd`,图片 → `Doubao-image-generation`,视频 → `ark_bd` 等);service 层不锁 Product 让 wire 按 SplitItemID 自然跨产品命中。所以 `--mine --mine-by=endpoint` 会把图片 / 视频 EP 的账单也包含。两个 mine 视图同一笔消费各出现一次,**不可加和**。
 
+当前 Volc 的 `resolveMyAPIKeySIDs` 从本人 Key 列表中只保留 `Active=true` 且 SID 非空的条目。查历史账期时须披露这一资源集合限制；未查询到已停用/删除 Key 的历史费用不等于这些费用不存在。空结果不改变用户指定的归属，补查另一维度时必须明确它是另一种范围。
+
 **`--mine` ≠ `PayerID`**:
 - `--mine` 按 **IAM 子用户** UserID 过滤 (客户端先列我的资源 ID,service 层 per-resource fan-out)
 - wire 的 `PayerID` / `OwnerID` 是 **账号 owner ID** (10 位整数),用于财务托管场景
 - 单账户场景手撸 `--params '{"PayerID":[<我账号 ID>]}'` 是 no-op (= 全账号查询);要看自己用 `--mine`
 
 ## 返回值
+
+以下是字段齐全的形状示例，不保证每次返回都包含所有字段。固定Volc契约中的日期、币种和金额字段允许省略；先检查实际记录，再选择统计字段，不能把示例当作必填schema。
 
 ```json
 {
@@ -122,18 +129,26 @@ Volc 默认使用二进制内置的 9 个 API Key 可分账产品白名单，已
 
 | 字段 | 含义 |
 |------|------|
-| `BillPeriod` / `BillingDate` | 账期 / 账单日 (interval=month 时 BillingDate 可能为空) |
+| `BillPeriod` / `BillingDate` | 账期 / 账单日；`BillingDate`即使在day/detail查询中也可能为空或缺失，不能据此过滤成零账单 |
 | `Product` / `ProductZh` | 产品编码 / 中文名 |
 | `SplitItemID` / `SplitItemName` | 拆分项 ID / 名字 (endpoint 或 apikey,取决于 scope) |
-| `Currency` | 通常 `CNY` |
+| `Currency` | 通常`CNY`；缺失时须有真实接口/账单币种证据才能称人民币，多币种分开汇总 |
 | `OriginalBillAmount` | 优惠前金额 |
-| `PreferentialAmount` | 优惠 / 资源包抵扣金额 |
-| `PayableAmount` | **应付金额** (= Original - Preferential,对账主字段) |
+| `PreferentialAmount` | 可选的优惠/资源包抵扣金额，缺失不等于零，也不妨碍汇总已有应付金额 |
+| `PayableAmount` | **应付金额**，对账主字段；缺失行不按零补齐。不可仅因字段名就假定各金额项满足某个等式 |
 | `Count` / `Unit` | 计量值 / 单位 |
 | `total_records` / `returned` / `is_truncated` | summary 头: 服务端真实总数 / 本次返回行数 / 是否截断 |
 | `partial_failures` | 软截断 / sample 标记数组 (撞 cap 或 windowed); 每项含 `period` / `resource` / `total` / `returned` / `reason`,**`is_truncated=true` 时必查** |
 
 > 金额字段是字符串,加和 / 比较用 decimal 库,不要 `parseFloat` (JSON 数字精度有损)。
+
+### 本周、近N天与缺日期字段
+
+1. 先从真实运行时取得当前日期和时区；用户指定历史日期、时区或周起点时优先采用。默认周一开始的本周截至当天：用日历库取`today - timedelta(days=today.weekday())`至`today`；近N天则是`today - timedelta(days=N-1)`至`today`。这两个区间不等同。星期同样由工具计算，不按记忆填。保存本次日级起止、时区、资源归属与产品过滤，后续所有分片复用。
+2. 按覆盖月份查询`--interval day`后先看真实记录。只有逐行日期可用且符合实际日期格式时，才能按原闭区间筛选；日期缺失的非空记录不能当作“本周无账单”，也不能拿整个账期的合计代替原区间。
+3. 缺少逐行日期时，在原区间内串行补查`arkcli billing list --start <该日YYYY-MM> --interval day --day <YYYY-MM-DD> --output <该日文件>`，并保留原归属/产品/Project过滤。每个日期只收集一份成功完整结果，`--day`不与跨月范围混用。汇总记录查询日期及原始文件来源；这是请求范围证据，不给原行伪造`BillingDate`。若返回明确与日期约束矛盾，保留错误并说明无法确认，不能继续作精确日归属。
+4. 每片先校验退出状态、业务错误、截断、partial_failures以及文件摘要与行数。完整成功且`total_records=returned=0`、`items`为空数组或null，只表示该范围本次无已出账行；当日T+1或历史Key覆盖缺口仍须说明。请求失败、缺字段、部分返回与截断不能直接`items or []`后按零并入总额；保留失败日期并把合计标为已获取部分。
+5. 用Decimal汇总实际`PayableAmount`，同一份合格记录生成所有展示值。缺少优惠字段不阻断已有应付金额统计，也不臆造优惠；金额无法解析或应付字段缺失时报告缺口。确需用优惠前与应付之差时，只对同范围、同币种、两字段齐全的记录计算，并标为“计算差额”，不冒充接口返回的优惠/资源包抵扣细目。T+1未结算不擅自向前扩日期或按旧金额补齐。
 
 ## 软截断 (cap / windowed) 决策
 
@@ -165,6 +180,7 @@ arkcli billing list --start 2026-05 --output bills.json
 
 - service 自动把内部 cap 抬高到 1000 pages (300k 行 / ~100 MB 内存),覆盖绝大多数大账户全量
 - stdout 只剩 metadata (items=null + output_file 路径) — agent context 安全
+- 统计读取`output_file`中的完整JSON，核对其summary和实际行数；不能用stdout的null判断没有消费。原始明细保留，只展示必要的结构样本与本地计算结果。
 - 用户显式 `--page-limit=N` 仍尊重 (用户传的优先)
 - 仍超时 partial_failures 会标,再放宽 `--page-limit`
 

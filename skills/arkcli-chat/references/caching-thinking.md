@@ -116,8 +116,23 @@ response 字段；普通 `--stream` 是人类可读文本，不是上面的扁�
 
 `--reasoning-effort` 与 `--thinking` 是两个独立维度：
 
-- 明确要求关闭思考时使用 `--thinking disabled`；`--reasoning-effort minimal` 只是强度参数，不能替代关闭开关。
+- 明确要求关闭思考且目标支持时，优先使用 `--thinking disabled`。`thinking` 与 `reasoning` 在客户端分别编码，是否产生等价的模型行为由匹配模型版本与 API 文档决定。若文档明确说明 `enabled` 配合 `minimal` 会跳过思考，可说明这一有条件替代；没有依据或有明确例外时不作等价承诺，也不擅自替换用户指定的值。
 - CLI 将两者分别传为 Responses 请求的 `thinking.type` 和 `reasoning.effort`。交付 SDK/HTTP 示例时保留用户明确的值，不把 effort 写进 thinking，也不凭经验自动补 high。
 - 参数组合是否支持、最终是否采用由目标模型和服务端决定；保留实际错误与回显，不保证所有模型都接受相同组合。
 - `caching.type=enabled` 只说明配置；只有实际 usage 中的缓存命中统计才能证明命中。缺少统计时标为未知，不能声称已省下具体 token 或费用。
 - 比较延迟时记录模型版本、输入、参数、缓存状态和实际耗时；未实测时不宣称 disabled/minimal/high 有跨模型固定排序，也不为验证猜测擅自增加付费请求。
+
+
+## HTTP 与 Python SDK 的字段位置
+
+给示例时标明 SDK 包/导入、版本依据与 API 方法；“Python SDK”不足以区分方舟客户端和 `openai` 客户端。保持模型 ID、协议和开关值一致，再选择客户端传参方式：
+
+| 入口 | 关闭思考参数 | 核对边界 |
+| --- | --- | --- |
+| 原生 HTTP 请求 | 顶层 `"thinking": {"type": "disabled"}` | Chat 输入为 `messages`；Responses 输入为 `input`；两者支持范围分别核对 |
+| 方舟 Python SDK | 对应版本方法支持时使用 `thinking={"type": "disabled"}` | 示例写明实际包/导入；不能套给未注册该关键字的 SDK |
+| Python `openai` 客户端 | `extra_body={"thinking": {"type": "disabled"}}` | `extra_body` 是 SDK 的额外请求体入口，线上 JSON 仍是顶层 `thinking`，不是嵌套 `extra_body` |
+
+用户未指定 SDK 时，可在最小 HTTP 示例旁简述上述兼容差异；不需要执行真实模型请求或先创建 Key。已有匹配文档时可交付已查证用法，缺失的模型/版本条件明确列出。
+
+思考强度在 Chat 请求使用 `reasoning_effort`，Responses 使用 `reasoning.effort`。模型文档只证明某一协议下 `minimal` 的语义时，不能自动推广到另一协议或其他模型；固定 CLI 的 `+chat --reasoning-effort` 走 Responses 并编码 `reasoning.effort`，本地 Preview/SDK 枚举不能证明线上模型接受或产生相同行为。性能、缓存命中和费用仍以实际测量或返回值为依据。

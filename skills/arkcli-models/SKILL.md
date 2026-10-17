@@ -1,6 +1,6 @@
 ---
 name: arkcli-models
-version: 1.0.6
+version: 1.0.7
 description: "arkcli 模型查询与基础模型服务激活能力：列出、搜索、获取火山公共基础模型详情，以及用户明确要求的开通/激活模型服务（`arkcli models activate`）；Volc 还支持 TTFT/TPOT 性能排名、延迟趋势和输入长度对比。激活已有基础模型服务不等于部署/创建 Endpoint，不得转成 `+deploy`。优先使用产品命令 `arkcli models ...`，而不是直接调用 Raw API。反触发：用户的最终目标是创建 / 部署 Endpoint 时，本 skill 承担有界的只读候选查询，owning skill 由创建路径确定：普通产品创建走 arkcli-deploy；用户显式要求 raw CRUD / CI / 无守卫的 `infer endpoint create` 走 arkcli-infer-endpoint。候选首先执行 `models search ... --size 10 --format json`；成功完整结果直接复用，空结果与捕获缺损按 reference 有界恢复，并把实时返回的 `name` 与非空 `primary_version` 组合成可直接传给 `--model` 的完整 ID，不能拉全量清单、把裸家族名当可部署 ID，或逐候选追加 `models get`。注意：查询/管理账号下自传或精调的自定义模型（`cm-xxx`）走 arkcli-custommodel。"
 metadata:
   requires:
@@ -19,8 +19,11 @@ metadata:
 - 先判断用户最终要做的是“查询模型”，还是把模型用于上游任务；不能因为用户提到 `models search` 就把模型查询当成最终任务。
 - 最终目标是 Endpoint 创建时，本 skill 只能作为只读助手，不能成为 owning Skill：普通创建读取并保留 `arkcli-deploy`；显式 raw CRUD / CI / 无守卫创建读取并保留 `arkcli-infer-endpoint`。
 - owning Skill 的查询次数、结果上限、停止点和写入边界高于本 skill 的通用流程。完成交接后按 owning Skill 执行；只有纯模型查询才继续本 skill 的第 0 步和通用命令选择。
+- 最终目标是文本对话 / Chat Completions / Responses API 参数用法、SDK 调用写法或已有请求的字段修复时，先读取 [`../arkcli-chat/SKILL.md`](../arkcli-chat/SKILL.md)，由它完成协议与客户端示例交付；涉及思考开关或强度时还须读取 [`../arkcli-chat/references/caching-thinking.md`](../arkcli-chat/references/caching-thinking.md)。本 skill 仅核对对应模型版本的能力事实，复用本轮完整结果，查完后回到原问题；模型详情不能替代 SDK 参数位置说明，也不表示需要真实推理。只问模型目录、版本、是否支持某能力时仍由本 skill 直接回答。
 
 ## 使用原则
+
+- **账号开通状态必须有权益证据**：`models get` 的 `pricing.state="Available"` 才能据此说该模型服务已开通，`Unavailable` 表示该权益不可用；缺失/null/未知状态标为未核实，不能归入未开通。没有 Endpoint、没有价格、免费额度为零都不是未开通证据；开通也不保证任意 API、Endpoint 或当前凭证可调用。盘点时保留逐项状态与未知项，不用“目录减已有 EP”的差集代替权益查询。
 
 
 - 模型相关需求优先使用 `arkcli models ...`
@@ -30,6 +33,32 @@ metadata:
 - **语音模型边界**：广场命中不证明 arkcli 支持该模型的调用、Endpoint 创建、示例或用量。TTS/ASR 等独立能力的接入应核对对应官方 API/SDK，不把裸名塞进 Responses。费用询价交给 `pricing models --modality Audio`，仅按当前计价项作答；未返回就说明价格源未覆盖。
 - **下线通知与广场目录是不同证据域**：用户提到短信/站内信、停服日期或「是否需要重新设置」时，先核对对应产品的官方下线公告，不要先查 `models search` 再用目录里的 `Published`/`Retiring` 反驳公告。若用户未说明使用 Agent Plan、Coding Plan 还是按量 Endpoint，分别标注各产品适用范围；Agent Plan 先看[模型下线公告](https://ark.volcengine.com/region:cn-beijing/docs/agent-plan-personal-model-deprecation-announcement)，Coding Plan 看[模型下线公告](https://ark.volcengine.com/region:cn-beijing/docs/coding-plan-personal-model-deprecation)，按量 Endpoint 看[平台模型下线公告](https://ark.volcengine.com/region:cn-beijing/docs/model-deprecation-notice)。只引用该产品公告中旧型号的具体行、时区与迁移目标，**再检查较新公告行中建议迁移型号是否也在下线**，给出仍受支持的下一站；不能把某套餐的日期套到另一产品。不明产品时给条件化结论。
 - 这类问题的最终目标是**迁移判断**，不是公共模型选型：先加载对应 `arkcli-plans` / `arkcli-infer-endpoint` owning Skill；公告回答后，才按用户实际配置区分 `auto`/`ark-code-latest`、写死的 Model Name、自建 `ep-...`。账号实时状态查询失败则明确未知，不能以公共目录状态代替。纯问公共目录生命周期才继续本 skill 的 `models search` 流程。
+
+## 模型事实与客户端行为
+
+模型元数据只能证明该模型的输入/输出能力、参数与生命周期，不能证明 Trae/Claude Code/其他客户端如何把粘贴图片编码或发送。缺少客户端正式文档、原请求 body 或实际观测时，用“如果请求确实含 image_url/图片内容……”给条件化建议，不断言客户端会自动发图片、不把客户端设置猜测写进事实卡片。向 text-only 模型建议纯文本与向视觉模型建议图片分别保留条件；不改已查证的模型事实来迎合猜测。回复修改工具失败时原断言仍未被纠正，必须实际完成修正并核对最终内容后才声称已改。
+
+点名模型的参数问题必须核对该完整版本的`supported_params`与对应官方文档。先复用本轮已有完整结果；确需查询时保存一次完整`arkcli models get <模型ID> --format json`结果和stderr，核对实际`name/version`，再读参数目录。Volc的`supported_params`是按`name`识别条目的**数组**，嵌套`properties`也同样是数组，不是按参数名索引的对象；先检查类型，再用`.supported_params[] | select(.name == "<参数名>")`找条目，子属性逐层按`name`匹配。不能用`.supported_params.text`或`.supported_params.properties.text`猜路径。缺失、null或空数组说明本次没有可用参数目录，不证明参数不支持；出现本地jq/解析错误时，先修复对已保存JSON的读取，不能把解析失败当上游能力缺失或为了改本地表达式反复查询。
+
+读取匹配条目的`support/type/enum/min/max/required/supported_models`以及子属性，保留父级与适用版本约束；明确`support=true`才据此说明支持，`false`如实报告，未知不补成布尔结论；不能拿其他模型或其他参数的枚举拼结论。CLI help的全局参数全集不能当成每个模型都支持的取值。问如何关闭思考时，只交付该版本有依据的关闭方式，不顺手添加未经核实的`thinking.type=auto`，也不把`reasoning_effort=minimal`泛化为所有模型都关闭思考。声明与实际接受不一致时分别报告，未获准不追加推理探针。SDK示例还须区分具体SDK/版本的签名与透传方式，不能把Ark SDK的直接关键字传参照抄成OpenAI SDK调用。
+
+`api_support`仅说明模型目录声明哪些API可用，不说明用户这次实际请求走了哪条API。单独一个unknown field或参数报错不能证明用户用了Responses；用已提供的实际URL/path、SDK方法和请求字段判断，没有这些证据就给条件分支并保留未知。两个API均支持时也不能任选一个当作用户的现状。
+
+### 账号开通盘点与交付
+
+先确定查询范围：问公共目录用 `models list`；问某个模型的权益用 `models get` 的 `pricing.state`，该字段来自 `ListModelChargeItems.Items[].State`，是有效的单项证据。问“我的哪些模型未开通”需要账号权益全集，公共目录分页不等于权益分页，不能用目录总数声称覆盖全部账号权益。
+
+当前产品命令未提供账号权益全量列表时，读取 [`../arkcli-api-explorer/SKILL.md`](../arkcli-api-explorer/SKILL.md)，核对本机注册的 `model.list_model_charge_items` 和请求契约，再只读查询：
+
+```bash
+arkcli api model.list_model_charge_items --params '{"PageNumber":1,"PageSize":100,"Fields":["Base","SubServices"]}' --format json
+```
+
+按实际 `Result.TotalCount`、`PageNumber`、`PageSize` 续页，保留每项 `FoundationModelName`、`State` 及限制字段；不只看第一页，不把响应缺失当空列表。按基础模型名去重，遇到同名状态冲突或中途失败明确覆盖不完整。模型目录只用于补充名称、版本与生命周期；目录中出现但权益列表缺席的项仍是“未核实”，不能用差集推断未开通。
+
+最终答复按同一去重集合列出：确认 Available、Unavailable（权益不可用）、Shutdown/停服、状态未知/查询失败；未知不能归入任一确定状态，`Unavailable` 的欠费/受限等原因须按实际字段说明，不能一律承诺可自助开通。输出前核对逐项结果、分组计数、总数和结尾概括一致；仍有未知项时不得写“其余均已开通”。无需列全明细时保留各组数量、异常项及查询范围。
+
+用户同时问“哪些未开通、怎么开通”时，最终答复须分别完成账号状态盘点和开通方法：保留真实Unavailable、未知、停服与受限项的区别；读取[`references/arkcli-models-activate.md`](references/arkcli-models-activate.md)并核对实际help后，给出适用的`arkcli models activate <已核实的基础模型名>`方式及真实子服务约束，不能只给控制台路径。问方法不等于授权立即开通，说明命令不得触发实际activate；真实写入仍按共享宿主授权流程。迁移建议保留实时生命周期及官方目标；未核对费用或改造工作量时，不称“成本最低”“零改动”，停服或无可用版本也不能按旧参考答案编造成功调用。
 
 ## 适用场景
 
@@ -206,63 +235,13 @@ arkcli models search --multimodal --output-modality text --strict-filter
 | `arkcli models get <id> [version]` | 单个模型完整详情（聚合多 API，最重也最全）|
 | `arkcli models performance {rank,trend,input-length}` | **仅 Volc**：公共模型性能排名、趋势与输入长度对比 |
 
-## 命名约定的 tier 启发式（降级兜底：仅在场景表未命中时启用）
+## 模型名称与目录排序的证据边界
 
-**优先级口诀：场景表命中(★★★) > 命名启发式(★★，本节) > update_time。** 先走「快速决策 第 0 步」的场景表；只有场景表没覆盖该意图、或用户点名第三方/开源/历史模型时，才用本节的命名启发式排序。
+模型名称中的代次、Pro/Lite/Flash/Mini、vision/thinking 等后缀只作为检索线索。它们不能单独证明能力强弱、延迟、价格或当前版本的输入与 API 支持；后缀相同也不能跨模型家族作比较。按用户需求核对 `context_window`、输入/输出模态、`api_support` 和生命周期，未知字段保持未知。
 
-`search` 加 filter 之后通常还会剩多个候选，命名里有规律的 tier 信号可以帮 agent 做最后一步排序。**这是启发式，不是硬规则**：硬指标（context_window / capabilities / modality）永远优先于命名。
-
-### 代次（major version）— 优先级最高
-
-```
-2-x > 1-8 > 1-6 > 1-5 > ...
-```
-
-代次跳跃通常**强于 tier**。例：`doubao-seed-2-0-mini` 在多数任务上强于 `doubao-seed-1-6-pro`，因为基座模型代次差距大于尺寸档差距。
-
-### tier（同代内的尺寸档）
-
-```
-pro  ≥  无后缀  >  lite  >  flash  >  mini  >  nano
-```
-
-- `pro`：旗舰，最大尺寸 / 最强能力
-- 无后缀（如 `doubao-seed-1-8`）：主力档，通常 ≈ pro
-- `lite`：成本/性能均衡
-- `flash`：速度优化
-- `mini` / `nano`：低延迟、高并发、最低成本
-
-### specialty 后缀（不参与 tier 比较，按用途选）
-
-```
--code        → 编程优化（Doubao-Seed-Code 等）
--thinking    → 思考能力强化（更长 reasoning）
--vision      → 视觉理解强化
--character   → 角色扮演 / 长旁白
--translation → 翻译专用
--tts / -voice → 语音合成
--asr         → 语音识别
-```
-
-specialty 模型在它的领域内**通常强于同代通用 pro**，但跨任务时不可移植。
-
-### `primary_version` 比较的注意事项
-
-- **同一 family 内**：日期越新越好（`260215 > 251228 > 251015`）
-- **不同 family 之间**：**不可数值比较**。`qwen3-14b-20250429`（8 位）和 `doubao-seed-1-6-251015`（6 位）数值上前者大，但和"哪个强"无关
-- 比较"哪个更新"统一用 `update_time` 字段（ISO 8601，可字典序比较），不要去 parse `primary_version`
-
-### 决策口诀
-
-```
-filter (硬指标，必须满足)
-   ↓
-代次 (2-x > 1-x，跨代差距通常 > 同代 tier 差距)
-   ↓
-tier (pro > 无后缀 > lite > flash > mini > nano)
-   ↓
-update_time (同代同 tier 时，新者优先)
-```
+- 推荐强弱或速度需要匹配模型版本、任务与测量条件的性能证据；成本比较需要当前适用定价及计费条件。没有这些依据时给出可确认的能力差异和待核对项，不把命名印象写成“最强”“最快”或“最低成本”。
+- 场景表用于定位候选，`search` 的位置用于浏览目录；都不能替代本次比较的证据。因诊断临时查询候选后，应回到原问题，不自动扩展成模型排名或选型交付。
+- `primary_version` 是版本标识。不同家族的格式不可数值比较；同一家族的新版本也不必然更适合当前任务。比较目录更新时间用 `update_time`，升级建议按对应版本说明与用户约束判断。
 
 ### 排序已经在 `search` 命令里实装
 
@@ -279,7 +258,7 @@ update_time (同代同 tier 时，新者优先)
 **关键设计**：
 - **family 分组先于细排**。doubao-seed 家族（max ctx=262144）整体排在 doubao-seed-character（max ctx=131072）和所有 ctx=null 家族之前。这避免了"同家族的 1-6-vision 比 1-8 还靠前"这种违反传递性的奇怪结果。
 - **同 family 内 gen 优先于 ctx**。新版本即使 ArkModels 元数据还没补齐（`context_window=null`），也会浮在已有 ctx 数据的旧版本之前。例：`glm-5-1`（gen=501, ctx=null）排在 `glm-4-6`（gen=406, ctx=262144）之前；`kimi-k2-6`（gen=600, ctx=null）排在 `kimi-k2-5`（gen=500, ctx=262144）之前。
-- **代次优先于 tier**。同 family `doubao-seed-2-0-mini`（gen=200, tier=50）排在 `doubao-seed-1-8`（gen=108, tier=80）之前 —— 跨代差距通常大于同代 tier 差距。
+- **代次优先于 tier**。同 family `doubao-seed-2-0-mini`（gen=200, tier=50）排在 `doubao-seed-1-8`（gen=108, tier=80）之前。这是目录展示规则，不是模型质量评测结论。
 - **跨 family 不比 gen/tier**。pro/lite/mini 是 family 内部命名，跨 family 没有可比性 —— 由 family 代表分（max ctx + max time）决定家族先后。
 
 被打了 `体验隐藏` / `推理隐藏` / `广场隐藏` 任一标签的旧模型自动沉底（不会被 list/search 屏蔽，但永远在结果末尾）。
@@ -300,7 +279,7 @@ ArkModels 给公共模型目录记录打 `lifecycle_status`，三种值，Search
 
 **Agent 行为约定**：
 - 不需要做"过滤掉 Shutdown"的客户端逻辑 —— search 默认已经做了
-- 看到 `lifecycle_status="Retiring"` 的模型时，**主动提醒用户它正在下线**，并尝试在同 family 里找一个更新版本（用 `search` + 正确 keyword 即可）
+- 看到 `lifecycle_status="Retiring"` 时提醒下线风险；用户要新模型推荐时可查同 family 替代。用户明确点名创建/调用时保留精确型号与版本，交回 owning Skill 按原创建/调用流程验证；目录状态不能单独宣布服务端必定拒绝，也不能保证可创建。实际返回 invalid status/权限/资格拒绝时如实报告；未获授权不自动换模型、激活或换账号。
 
 ## ❌ 反模式（agent 必读）
 

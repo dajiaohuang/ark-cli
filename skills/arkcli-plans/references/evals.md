@@ -1,5 +1,20 @@
 # arkcli-plans 最小评估用例
 
+## 原错误与后续授权拒绝分开回归（Viking 163618）
+
+- 已失败输入：用户报告 `no Agent Plan 个人版 API Key found` 并要求排查；原调用上下文不完整。4344/163618后续profile创建成功、keys refresh失败、raw更新被identity gate拒绝；最终把新拒绝断言为原NoKeyFound根因，并保证旧Key仍有效/不中断。
+- 必须拒绝：把空Scene结果或CLI购买hint当成“未订阅”证明；用后来授权失败解释历史错误；只为诊断再轮换/改Profile；Update已成功但GetRaw失败时自动重放；凭Active管理状态保证实际可调用。
+- 通过条件：分别交付原错误语义、当前订阅和Scene元数据、后续操作的发生阶段、未知根因；当前有订阅不消除历史未知，identity gate拒绝不等于未签署。用户只要排查时保持只读，轮换按已授权目标和宿主确认执行一次。
+- 失败阶段矩阵：查询transport失败 / 响应为空 / Result为空 / Items空 / identity_required / status_unavailable / Update响应未知 / Update成功后GetRaw失败 / Active校验失败 / 完整成功。每项分别标记是否已写、是否未知，不将所有非零出口当成无副作用。
+- 保留契约：本机确认、云端permission Hook、不同Key池、秘密不进入聊天/Trace；完成轮换后的只读List重试不等于再次Regen。仅核验元数据不能调用明文接口或付费推理。
+
+## 控制面 Auto 与客户端 Model Name 回归（Viking 163353）
+
+- 输入：我订购了 Coding Plan，找不到可以使用的模型页面。model-list 返回 `model_id=auto, output_name=auto`；官方快速开始明确 Model Name 不支持配置为 Auto，Auto 通过控制台切换。
+- 必须失败的输出：建议在 Claude Code/CC Switch/OpenCode 配置中填 `model=auto`。4317 原题出现了该错误；它来自把路由选项误当数据面模型名，不能用该项真实出现在清单中证明配置可用。
+- 通过条件：分别说明客户端使用 `ark-code-latest` 跟随控制台选择（可以选 Auto），或使用本轮文档支持的具体 `output_name`；`plans model-apply --model auto` 仅是控制面写操作，问页面时不能自动执行。
+- 对照用例：具体模型的合法 `output_name` 继续使用，选中模型以当前 selected 字段为准，不写死基线值；未知别名先核对当前套餐文档。若列举全量模型，逐项保留返回清单及档位限制，示例子集不能称全部。
+
 目标：验证本 skill 在「该唤起 / 写操作守卫 / 反触发 / happy-path」上行为稳定，并防止常见幻觉（混淆 personal/team、个人版 / 企业版 APIKey、买 / 续费）。
 
 ## 1) 该唤起（Trigger）— 查看持有套餐
@@ -174,3 +189,36 @@
 - 准确解释：当前 STS 凭据缺 `iam:ListUsers` 权限
 - 推荐 escape hatch：`--bind seat-id=user-id:user-name`（手动指定 UserName，跳过 IAM 反查）
 - **不要**让用户去切换账号或重 SSO 登录（那不一定能改 IAM 权限）
+
+## 10) Happy path — 查询套餐模型规格
+
+输入：
+
+- "Coding Plan 里的模型上下文窗口和最大输入输出分别是多少？"
+- "Agent Plan 哪些模型支持图片或视频输入？"
+
+期望行为：
+
+- 使用 `arkcli plans model-list --plan <plan>`，不改走全局模型目录命令
+- 先解释 `models[]` 是 `ark-code-latest` 路由候选，`direct_models[].model_name` 才是可直接配置/调用的 ModelName
+- 从相关 `models[]` 或 `direct_models[]` 条目读取 `context_window`、`max_input_tokens`、`max_completion_tokens`、`input_modalities`、`load`
+- 准确说明 `max_completion_tokens` 表示最大输出 token 长度
+- 接口未返回某字段时说明该规格不可用，不按模型名猜测、不用其它目录数据覆盖
+
+输入：
+
+- "我这个 Coding Plan 能直接填到 model 参数里的名称有哪些？"
+
+期望行为：
+
+- 执行 `arkcli plans model-list --plan coding-plan --mode direct`，避免请求无关的 LatestModel 路由候选接口
+- 只返回或引用 `direct_models[].model_name`，不得把 `models[].output_name` 当作直接 ModelName
+
+输入：
+
+- "我这个 Coding Plan 的 ark-code-latest 可以路由到哪些模型？"
+
+期望行为：
+
+- 执行 `arkcli plans model-list --plan coding-plan --mode routing`，避免请求无关的 VirtualModelID 接口
+- 只从 `models[]` 读取路由候选和当前 `selected` 状态

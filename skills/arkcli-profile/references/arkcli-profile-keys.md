@@ -1,25 +1,25 @@
-# profile keys 详细参考
+# profile apikey 详细参考
 
 > **前置**：先读 [`../SKILL.md`](../SKILL.md)。
 
-`profile keys` 是 0.1.16 引入的 API Key 管理子树，跟 `arkcli auth apikey`（只交互选择普通池 Key）**不是同一个东西**：
+`profile apikey` 是 0.1.16 引入的 API Key 管理子树，跟 `arkcli auth apikey`（只交互选择普通池 Key）**不是同一个东西**：
 
-- `profile keys list/use/refresh` 操作的是 **profile.yaml 里的 available_api_keys 列表 + default_api_key 选择**
+- `profile apikey list/use/refresh` 操作的是 **profile.yaml 里的 available_api_keys 列表 + default_api_key 选择**
 - `arkcli auth apikey` 操作的是 **普通 API Key 池**，并写入 `.env` 的 `VOLCENGINE_ARK_API_KEY`（identity-level 兼容凭证）；它不读取或修复 Agent Plan 专属 Key，也不读取团队席位 Key
 
 ## 命令模板
 
 ```bash
 # 列当前 profile 的 default + available_api_keys（masked）
-arkcli profile keys list --format json
-arkcli profile keys list --profile platform_cn-beijing_default --format json
+arkcli profile apikey list --format json
+arkcli profile apikey list --profile platform_cn-beijing_default --format json
 
 # 切 default key（必须 ∈ available list）
-arkcli profile keys use 392xxxxdab0
+arkcli profile apikey use 392xxxxdab0
 
 # 按 profile 类型重拉对应 Key 来源 → 更新 available list（写 profile.yaml）
-arkcli profile keys refresh
-arkcli profile keys refresh --profile platform_cn-beijing_default
+arkcli profile apikey refresh
+arkcli profile apikey refresh --profile platform_cn-beijing_default
 ```
 
 ## `keys refresh` 关键行为

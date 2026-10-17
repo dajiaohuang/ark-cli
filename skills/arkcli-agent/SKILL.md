@@ -23,6 +23,8 @@ metadata:
 已拿到完整结果时复用它；名称搜索/grep 无命中不等于资源不存在，先确认目标是 Agent、
 Environment 还是 Session。用户提供明确 ID 时直接查对应资源，不先列全量清单。
 
+用户明确使用第三方模型/BYOK 时，先读 [BYOK 模型配置与请求凭证](references/byok.md)。不要把该模型强行匹配到 ArkModels，也不要自动改用方舟模型。
+
 | 用户输入 | AI Agent 的处理 |
 | ---- | ---- |
 | 未指定 Agent 主模型 | 创建任务有自然语言意图时，用 `arkcli agent model list --query "<用户意图>" --format json` 完整取候选并有据择优；仅列白名单时用 `arkcli agent model list --format json`。明确硬指标再按具体版本查 metadata，不凭记忆拼 ID |
@@ -30,8 +32,8 @@ Environment 还是 Session。用户提供明确 ID 时直接查对应资源，�
 | 未指定 Skill | 先查本账号 custom skill；没有合适候选再查 market/SkillHub skill |
 | 给出本地 Skill zip | 先调用 `agent skill create --zip`，拿到返回的 `skill-...` ID 和版本后再创建 Agent |
 | 未指定工具 | 使用 CLI 注入的完整默认工具集；显式传 `--tool` 时全量替换默认工具 |
-| 未明确要求多模态工具 | 不查询工具模型，不添加多模态工具集、image_generate/video_generate 或其 Models；保留普通默认工具，不能因所选模型支持多模态输入而自行添加 |
-| 未指定环境 | 创建 Session 时自动选择当前项目最新环境；没有可用环境才提示创建或传入环境 ID |
+| 未明确要求工具模型绑定 | 不查询工具模型，不自行添加 image_generate/video_generate 或其 Models；保留普通默认工具。明确要求 Todo 时按 [Todo 配置](references/todo-write.md)添加所属工具集，但不启用生图/视频 |
+| 未指定环境 | 先确认 Session 的实际 Project，再选择同 Project 的 Environment 并显式传 ID；不得从 account-wide 结果直接取最新环境，见 [项目一致性](references/session-files.md#session-项目一致性) |
 | 创建成功 | 必须回读 `agent agent get <agent-id> --format json`，展示服务端最终的 Model、System、Tools、Skills、McpServers 和扩展配置 |
 | 用户期待 Agent 回复 | 短请求使用 `+new session ... --message` 或 `events send ... --stream`；大 payload / 长耗时任务使用 `events send --poll`，或 send 立即返回后按 cursor 轮询 events / 使用 `+tail`，不要让所有任务都阻塞等待 |
 
@@ -58,6 +60,7 @@ Environment 还是 Session。用户提供明确 ID 时直接查对应资源，�
 | 用户意图 | 首选命令 | 细节 |
 | ---- | ---- | ---- |
 | 创建 / 更新 / 删除 Managed Agent | `arkcli agent agent ...` | [`references/agent.md`](references/agent.md) |
+| 启用 / 关闭 Todo 任务计划工具 | `agent agent create/update --tool`；非基础 toolset、不需要 Models | [`references/todo-write.md`](references/todo-write.md) |
 | 复制已有 Agent 并改名 / 局部覆盖配置 | `arkcli +new-agent --fork <agent-id> [--name <new-name>]` | [`references/agent.md`](references/agent.md#复制-agent) |
 | 为创建 Agent 选择可用模型 | `arkcli agent model list` | [`references/agent.md`](references/agent.md#模型选择) |
 | 为生图/生视频等支持模型绑定的工具选择模型 | `arkcli agent model list --usage tool` | [`references/agent.md`](references/agent.md#查询工具模型与缓存) |
@@ -82,6 +85,7 @@ Environment 还是 Session。用户提供明确 ID 时直接查对应资源，�
 | 上传文件并挂到已有 session | `arkcli agent session resources add <session-id> --path <file>` | [`references/session-files.md`](references/session-files.md) |
 | 只上传 / 查询 Files API 文件 | `arkcli agent file upload/list/get/wait/delete` | [`references/session-files.md`](references/session-files.md) |
 | 管理 memory store / memories | `arkcli agent memory-store ...` | [`references/interfaces-gaps.md`](references/interfaces-gaps.md) |
+| 整理会话记忆、创建或观察 Dream 任务（仅火山） | `arkcli agent dream create/list/get/cancel/wait` | [`references/dream.md`](references/dream.md) |
 | 查询可挂载 MCP / 管理 Vault / Credential / MCP OAuth | `arkcli agent vault oauth-provider list` / `arkcli agent vault ...` / `arkcli agent +mcp-login ...` | [`references/mcp-vault.md`](references/mcp-vault.md) |
 
 ## 模型查询：主模型与工具模型
@@ -131,6 +135,8 @@ Environment 还是 Session。用户提供明确 ID 时直接查对应资源，�
 
 ### 超时与重试
 
+- Dream 创建不自动重试。超时、连接中断或响应解析失败都可能已创建任务；先用返回 ID 查询，未拿到 ID 时检查 `agent dream list`，不要直接重新创建。`dream wait` 超时或中断只停止本地等待，不取消远端任务。
+
 - 只对网络超时、连接中断、429 或 5xx 做有限重试；参数校验、鉴权失败、未开通、权限不足和明确业务错误直接抛出，不要重试。
 - `session create` 超时后结果可能未知。先用 `session list/get` 按返回的标题、Agent、环境和创建时间检查是否已经创建，再决定是否重试；没有幂等键时不要盲目重复创建。
 - `events send` 超时后也可能已经被服务端接收。先用返回的 event cursor、发送时间或最近的 user event 查询 `events list`；确认没有接收记录后才允许重试，避免重复发送用户消息。
@@ -145,7 +151,7 @@ Environment 还是 Session。用户提供明确 ID 时直接查对应资源，�
 | `arkcli agent agent list/get/create/update/delete/versions` | Agent CRUD + 版本 |
 | `arkcli agent model list` | 默认查询主模型，`items[].model` 用于 `--model`；`--usage tool` 查询工具模型，结果用于 `Configs[].Models[].ID`；`--query` 可增强详情/排序 |
 | `arkcli +new-agent` | Agent create 增强入口；支持 `--fork/--from` 复制已有 Agent 后创建新 Agent |
-| `arkcli +iterate` | 更新 Agent 配置，创建新 Session，并进入 one-shot/REPL 试运行；`--environment-id/--env-id` 可选，省略时自动选择最新环境 |
+| `arkcli +iterate` | 更新 Agent 配置，创建新 Session，并进入 one-shot/REPL 试运行；创建前核对项目一致性，显式传入同 Project 的 `--environment-id/--env-id` |
 | `arkcli agent skill search/list/get/create/update/delete/versions/download/set-protection/github` | Market/custom/Ark Skill 查询、GitHub 导入、custom Skill 保护与版本管理；Ark Skill 只读 |
 | `arkcli agent env list/get/create/update/delete` | Environment CRUD；当前 `env list` 没有 `--status`，状态筛选规则见 `session-files.md` |
 | `arkcli agent session list/get/create/update/delete` | Session CRUD |

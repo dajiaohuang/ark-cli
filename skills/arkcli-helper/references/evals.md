@@ -74,6 +74,7 @@ arkcli helper configure pi --profile <plan-profile> --model <model-id>
 | `helper-capability-team-memory-rejected` | 用团队版 Agent Plan 只给 Codex 配 Agent 记忆。 | 明确团队版不含 OpenViking，不得生成可执行命令或改用其它 capability。 |
 | `helper-web-search-skill-credential` | 豆包搜索 MCP 已经有 Agent Plan Key，为什么 byted-web-search 还报没有凭证？ | 解释 MCP 与 Skill 是独立进程；重新执行 `helper mcp/configure`，由 Helper 将同一把 Plan Key 写入实际 Skill 根目录 `.env`；不得让用户修改第三方脚本或在对话中粘贴 Key。Skill 凭证未就绪时不得关闭原生 WebSearch。 |
 | `helper-pi-configure` | 给 Pi 配上我的 Coding Plan 模型。 | 使用 `arkcli helper configure pi --profile <plan-profile> [--model <model-id>]`；先展示目标 profile/model 与落点 `~/.pi/agent/models.json`、`settings.json` 并确认；不启动 TTY，不加 `--dry-run`。 |
+| `helper-direct-model-source` | 给 Codex 指定套餐里可直接调用的 glm-5.2，不要用智能路由。 | 直接模型候选只来自 VirtualModelID（`plans model-list --mode direct` 的 `direct_models[].model_name`）；不得从 LatestModel 的 `models[].output_name` 推断。写入的模型目录只含直接 ModelName 与合成的 `ark-code-latest`。 |
 | `helper-pi-mcp-unsupported` | 顺便给 Pi 装个 MCP / 豆包搜索。 | 说明 Pi 只支持 model/provider、没有 MCP 宿主；不得生成 `helper mcp pi` 或 `--with-mcp`，也不伪造 MCP。 |
 | `helper-zcode-output-limit` | ZCode 用 Coding Plan 的 glm-5.2 报 `InvalidParameter` 400，配置里 output 是 131072。 | 说明 ArkModels 二进制近似值与网关十进制上限的差异；升级后重新执行 `helper configure zcode`，完全退出 ZCode 主进程、重新打开并新建会话，期望 `limit.output=128000`；不得把 `limit.context` 同步改小或硬编码模型名。 |
 | `helper-capability-cua-only` | 模型保持 GPT，只给 Codex 安装 Agent Plan 的 CUA。 | 使用 `arkcli helper mcp codex --capability cua`；说明仅个人版 Medium/Large/Max，只安装 `byted-util-ark-cua` 给 Codex，不改模型、不扫描其他 Agent。 |

@@ -21,13 +21,34 @@
 
 下面这些数据面能力当前**没有专属产品命令**，需要直接通过 `arkcli api` 调用对应的 `arkruntime.*` Action：
 
-| 能力 | Action | 说明 |
-|------|--------|------|
-| Embedding（文本向量） | `arkruntime.create_embeddings` | 数据面 OpenAI 兼容 `/embeddings`，传 `model` + `input` 即可 |
+| 能力 | Action | Endpoint |
+|------|--------|----------|
+| Embedding（文本向量） | `arkruntime.create_embeddings` | `/embeddings`，`input` 为字符串（或字符串数组） |
+| Embedding（多模态：文本 + 图片 + 视频） | `arkruntime.create_multimodal_embeddings` | `/embeddings/multimodal`，`input` 为内容片段数组，返回单个文档向量 |
+
+**调用前先确认 `model` 是当前账号真实可调用的 ID**（embedding 类失败绝大多数是模型名问题，不是接口问题）：
+
+1. 查 embedding 模型的完整版本 ID（不要用展示名或裸族名，如 `doubao-embedding`）：`arkcli models list --modality embed`
+2. 或查当前 profile 已经可调用的推理接入点：`arkcli resources list`（用 `ep-...` ID）
+3. 模型需已在控制台开通；子账号还需主账号授权，否则返回 404 `InvalidEndpointOrModel.NotFound`
 
 ```bash
-arkcli api arkruntime.create_embeddings --params '{"model":"doubao-embedding-large-text-250515","input":"火山方舟"}'
+# 文本向量：<text-embedding-model-id> 用上一步 search 到的实际版本 ID 替换
+arkcli api arkruntime.create_embeddings --params '{"model":"<text-embedding-model-id>","input":"火山方舟"}'
+
+# 多模态向量：vision embedding 模型（*-embedding-vision-*）只能走这个 action；
+# 误走到 create_embeddings 会收到 400 "<model> does not support this api"
+arkcli api arkruntime.create_multimodal_embeddings --params '{"model":"<vision-embedding-model-id>","input":[{"type":"text","text":"火山方舟"}]}'
 ```
+
+常见报错对照（CLI 已会把这些翻译成带排查步骤的 hint）：
+
+| 报错 | 含义 / 处理 |
+|------|-------------|
+| 404 `InvalidEndpointOrModel.NotFound` | 模型/endpoint 名写错、用了裸族名、未开通或无权访问；按上面 1–3 步核对 |
+| 400 `<model> does not support this api` | vision/多模态 embedding 模型误走了文本 `/embeddings`；改用 `create_multimodal_embeddings` |
+| 400 `does not support the agent plan feature` | 当前 Agent Plan / Coding Plan 数据面不支持该模型；`arkcli resources list` 查套餐内可调用对象，或切 platform profile |
+| 本地 `connection refused` / 缺少 API Key | 检查代理环境变量 / `arkcli auth status`，必要时 `arkcli auth login` |
 
 需要新增其它能力的产品命令时，从这里降级到 raw API 是合法兜底，不要把 raw API 当默认入口。
 
@@ -119,6 +140,20 @@ arkcli api model.list_foundation_models --params '{"PageSize":10,"PageNumber":1}
 # 4) 只提取关键字段（示例 path，按实际输出结构调整）
 arkcli api model.list_foundation_models --params '{"PageSize":10,"PageNumber":1}' --transform 'Result.Items.#.Name'
 ```
+
+## 显式核对 GetModelChargeItem 原始契约
+
+仅当用户明确要求核对该 Action 的原始计费项或开通状态时，使用已注册的只读 operation：
+
+```bash
+arkcli api model.get_model_charge_item \
+  --params '{"FoundationModelName":"<actual-foundation-model-name>"}'
+```
+
+先从同一身份下的权威模型结果取得真实 `Name`，不要把 DisplayName、Endpoint ID 或
+自行拼接的版本名放进 `FoundationModelName`。保留实际返回的结构与字段：原始计费项和
+`pricing` 的产品价格投影不是同一契约；字段缺失或查询失败标未知，不编造价格/开通状态。
+此查询不执行开通或购买。普通模型询价仍使用 pricing/models，不因这个例子自动转 raw。
 
 ## 常见错误
 

@@ -169,8 +169,8 @@ arkcli +iterate agent-xxx \
   --format json
 ```
 
-- `--environment-id` / `--env-id` 可选；省略时 CLI 使用当前项目最近创建的 Environment。对环境有明确要求时应显式传入。
-- 不要因为用户没有提供环境 ID 就中断或要求补参：真实执行时 CLI 会用 `ListEnvironments` 按 `CreateTime Desc, Limit=1` 自动选择最新环境；只有没有可用环境时，才提示先创建环境或显式传入 `--environment-id`。
+- `--environment-id` / `--env-id` 在 CLI 语法上可选，但 Skill 执行时应按 [Session 项目一致性](session-files.md#session-项目一致性) 先核对 Agent、Environment 与新 Session 的实际 Project，并显式传入环境 ID。
+- 用户未提供环境 ID 时先查询同 Project 候选；不要依赖 `ListEnvironments` 的 `CreateTime Desc, Limit=1` 自动选择，因为 account-wide 上下文可能选到其他项目的环境。候选不明确或没有同项目环境时，再向用户确认。
 - `--diff` 不调用 `ListEnvironments`，会在在线差异预览的 `CreateSession.EnvironmentId` 中显示 `<auto-select-latest-environment>`；这是占位符，不要把它作为真实环境 ID 发送。`+iterate` 不注册 Client Preview `--dry-run`。
 - `--resource`、`--vault-id` / `--vault-ids`、`--tags` 会传给新 session。
 - `--diff` 会先读取当前 Agent，再只预览 `UpdateAgent`、`CreateSession`、chat send/stream 请求，不改远端；它是命令专用的在线 diff，不是零网络 Client Preview。
@@ -261,10 +261,12 @@ arkcli agent agent create \
 ```
 
 - `--tool` 接受 JSON/YAML 单个对象、数组或重复参数；工具字段支持 PascalCase / camelCase / snake_case 别名，如 `InputSchema` / `inputSchema` / `input_schema`。文件/stdin 的完整请求建议按 TOP 字段写 `Tools: [...]`，每项使用上表结构。
-- 所有传入项合成完整 `Tools` 数组并替换原值，不会追加默认工具。需要保留默认工具时，将 `agent_toolset_20260701` 工具集与 custom tool 一起放入数组；更新追加工具前先 get，再提交完整列表。`--tool '[]'` 清空工具。
+- 所有传入项合成完整 `Tools` 数组并替换原值，不会追加默认工具。需要保留默认工具时，将 `agent_toolset_20260916` 工具集与 custom tool 一起放入数组；更新追加工具前先 get，再提交完整列表。`--tool '[]'` 清空工具。
 - 先检查 dry-run 中 `InputSchema` 为对象、`Properties` 内容未被改写，再真实创建并 get 回读。声明工具不是上传可执行实现，CLI 不会自动执行任意自定义函数；工具调用结果通过 [custom tool result 事件](events-chat.md)回传，使用对应的 `custom_tool_use_id`。
 
 ## 工具绑定模型（仅部分工具支持）
+
+仅要求任务计划工具时，改走 [Todo Write](todo-write.md)：它虽属于多模态 toolset，但不需要工具模型查询或 Models；下面的模型绑定流程不适用于 Todo。
 
 创建 Agent 时，只有用户明确要求使用多模态工具（如生图、视频生成），或明确提供这类工具配置，才进入本节查询和配置流程。否则不运行 `agent model list --usage tool`，不添加 `agent_toolset_multimodal_20260825`、`image_generate`、`video_generate` 或其 `Configs[].Models` 参数；不因模型支持图片/视频输入、工具模型有候选或示例包含这些字段而自行添加。未指定工具时继续使用普通默认工具集，不要因此传 `--tool '[]'` 清空它。用户明确给出的配置应保留，不通过此规则静默删除。
 
@@ -327,11 +329,23 @@ Configs:
 
 ## 默认 Agent 工具
 
+火山新建默认使用 `agent_toolset_20260916`；BytePlus 默认仍为 `agent_toolset_20260701`。仅新建且没有显式 Tools 时注入，update / fork / Session override / upgrade 不自动改旧版本。
+
+用户明确要求升级旧普通工具集时，先 get 完整 `Tools`，只将匹配 `agent_toolset_20260701` 的条目 Type、Name 改为 `agent_toolset_20260916`，保留 Configs、DefaultConfig、权限、Models 及其他工具条目，再用 `--tool '<完整 JSON 数组>'` 提交，或放入更新请求文件的 `Tools` 字段并用 `--file`。显式旧版本和 `--tool '[]'` 原样处理，不给未知版本增加 CLI 白名单。
+
+提示词增强是可选工具集，不默认开启，也不推断支持 Models 绑定：
+
+```json
+{"Type":"agent_toolset_prompt_enhance_20260916","Name":"agent_toolset_prompt_enhance_20260916","Configs":[{"Name":"optimize_image_prompt","Enabled":true}]}
+```
+
+它根据提示词和参考图片优化生图提示词。将该条目加入用户需要保留的完整 Tools 数组后提交；只传该条目会替换其他工具。多模态工具集仍为 `agent_toolset_multimodal_20260825`，不因为升级普通 Toolset 自动开启多模态。
+
 创建 Agent 时，如果用户没有显式传 `--tool`，且请求体里没有 `Tools`，CLI 调 CreateAgent 时自动传入默认 `Tools` 数组：
 
 ```yaml
-Type: agent_toolset_20260701
-Name: agent_toolset_20260701
+Type: agent_toolset_20260916
+Name: agent_toolset_20260916
 Configs:
   - Name: bash
     Enabled: true
@@ -364,7 +378,7 @@ DefaultConfig:
 
 - 用户明确传 `--tool '[]'` 表示关闭默认工具，必须尊重。
 - 用户显式传任意 `--tool` 时，传入值就是完整 `Tools` 数组，CLI 不追加/合并默认工具。
-- 需要 `advisor` 且保留默认工具时，必须显式传完整数组，例如 `--tool '[{Type: agent_toolset_20260701, Name: agent_toolset_20260701}, {Type: evolution, Configs: [{Name: advisor, Enabled: true}]}]'`。
+- 需要 `advisor` 且保留默认工具时，必须显式传完整数组，例如 `--tool '[{Type: agent_toolset_20260916, Name: agent_toolset_20260916}, {Type: evolution, Configs: [{Name: advisor, Enabled: true}]}]'`。
 - 不要重复手写默认工具，除非用户要调整权限或显式关闭。
 
 ### 修改默认工具权限
@@ -385,8 +399,8 @@ arkcli agent agent create \
   --system "You are a data analysis agent. Help users inspect datasets, reason about metrics, write analysis code, and summarize findings clearly." \
   --skill '{type: skill_hub, skill_id: skill-xxx, version: "1.0.0"}' \
   --tool '[{
-    Type: agent_toolset_20260701,
-    Name: agent_toolset_20260701,
+    Type: agent_toolset_20260916,
+    Name: agent_toolset_20260916,
     DefaultConfig: {Enabled: true, PermissionPolicy: {Type: always_allow}},
     Configs: [
       {Name: bash, Enabled: true, PermissionPolicy: {Type: always_allow}},
@@ -402,7 +416,7 @@ arkcli agent agent create \
   --format json
 ```
 
-如果用户要求多个工具不同策略，同样在这一个完整 `agent_toolset_20260701` 的 `Configs` 里同时改，不要拆成多个 `agent_toolset`。
+如果用户要求多个工具不同策略，同样在这一个完整 `agent_toolset_20260916` 的 `Configs` 里同时改，不要拆成多个 `agent_toolset`。
 
 ## 示例
 

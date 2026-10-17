@@ -30,7 +30,7 @@ arkcli agent model config <foundation-model-name> --key thinking.support_value,t
 | `reasoning_effort` | 推理投入程度，例如部分模型支持 `low`、`medium`、`high`。 | `reasoning_effort.support_value`、`reasoning_effort.default` |
 | `service_tier` | 模型服务档位，例如部分模型支持 `default`、`fast` 或 `auto`。不是 CLI 套餐选择。 | `service_tier.support_value`、`service_tier.default` |
 
-上述选值仅是示例，不是统一枚举。`speed` 的选值也应直接读取目标模型的返回值。`protocol` 可作为模型协议信息读取，不代表允许用户修改服务端管理的 `Protocol` 字段。
+上述取值仅为示例，不是通用枚举，应读取目标模型 metadata。第三方 Protocol 与接入参数按 [BYOK 契约](byok.md)显式配置；不能用 Ark metadata 推断第三方模型能力。
 
 例如某次返回 `Key: "thinking.support_value", Data: ["enabled", "disabled"]` 与 `Key: "thinking.default", Data: ["enabled"]`，表示该目标模型声明这两个可选值，默认值为 `enabled`；不能推广到其他模型。
 

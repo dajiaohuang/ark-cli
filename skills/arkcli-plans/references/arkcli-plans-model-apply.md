@@ -44,13 +44,13 @@ arkcli plans model-apply --plan coding-plan-team --model doubao-seed-code-251028
 
 ## 注意事项
 
-- **可选项以 [`plans model-list`](arkcli-plans-model-list.md) 返回的清单为准**；`--model` 传清单外的值会报 `不支持路由目标` 并列出可选项
+- **可选项以 [`plans model-list --mode routing`](arkcli-plans-model-list.md) 返回的 `models[]` 为准**；`--model` 传清单外的值会报 `不支持路由目标` 并列出可选项
 - 团队版（`*-team`）作用域是**当前身份的席位**：账号在该套餐下没有有效席位时会报错，需先在控制台开通席位
-- 写入后 CLI 会重读一次清单校验；控制面异步生效期间不一致只打 stderr `warn`、不影响退出码，可用 `plans model-list` 复核
+- 写入后 CLI 会重读一次清单校验；控制面异步生效期间不一致只打 stderr `warn`、不影响退出码，可用 `plans model-list --mode routing` 复核
 - 该命令只改"路由指向"，不改本机 Agent 配置；本机 Agent 要切模型走 [`../../arkcli-helper/SKILL.md`](../../arkcli-helper/SKILL.md) 的 `helper configure --model`
 
 ## 参考
 
 - [arkcli-plans](../SKILL.md) -- skill 概览
-- [`plans model-list`](arkcli-plans-model-list.md) -- 查看可选路由目标与当前生效项
+- [`plans model-list --mode routing`](arkcli-plans-model-list.md) -- 只查询可选路由目标与当前生效项
 - [arkcli-shared](../../arkcli-shared/SKILL.md)

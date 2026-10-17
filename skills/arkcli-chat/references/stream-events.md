@@ -96,6 +96,26 @@ jq -j 'select((.type | gsub("\\."; "_")) == "response_completed") | .response.ou
 推理 delta 与最终正文分开，不能把 reasoning_summary_text 当作用户要求的译文；
 落盘文本应与成功终态正文一致，不由宿主 Agent 重写“相同意思”的回答。
 
+## 用户授权的流式性能对照
+
+用户明确要求实测才发起对照，先约定样本数与调用预算；不为补充诊断自行扩大模型矩阵。
+固定同一模型/Endpoint、Profile/费用路径、prompt、输入、token 上限和其他请求参数，
+每次只改变一个变量。`--thinking` 与 `--reasoning-effort` 分别控制 thinking 和 reasoning，
+不能同时改变二者后称为单变量对照；也不能把未指定当作固定为某个默认值。
+
+- 使用 `--stream --include-events` 消费完整 stdout，在进程启动及每行事件到达时记录
+  同一单调时钟的时间；CLI 事件本身不提供可直接相减的客户端到达时间。
+- Responses 的正文 TTFT 取首个**非空** `response_output_text_delta` 的到达时间减去
+  本次进程启动时间，注明口径含 CLI 启动/请求准备；比较时兼容点号/下划线 type。
+  reasoning、空 delta、created 和心跳不是首个正文；无正文的请求 TTFT 保持缺失。
+  这是外部观测的“正文 TTFT”：当前 CLI 内部计时从流调用准备完成后开始，在首次
+  事件回调计时，可能早于首个正文；两种起点和终点不同，不能混用为同一指标。
+- 原始事件完整保存，另存时间记录与 stderr，不能用 `head` 或首个 delta 截断请求。
+  必须同时检查 CLI 退出码及成功终态；部分输出、failed/incomplete 或截断标失败样本，
+  单独报告，不混入成功样本的 TTFT 平均值。
+- 报告各配置的成功/失败样本数、模型与有效参数、环境、计时口径和观察值。
+  单个样本不能推出普遍速度排序，不能承诺 `disabled < minimal < low` 或服务 SLA。
+
 ## 与 `--format json` 的区别
 
 | 维度 | `--stream --include-events` | `--stream` (不带 include-events) | `--format json` (非流式) |

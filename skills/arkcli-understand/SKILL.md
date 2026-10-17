@@ -1,7 +1,7 @@
 ---
 name: arkcli-understand
 version: 1.1.0
-description: "arkcli +understand：基于 Responses API 的 12 个多模态专项理解配方，支持临时 API Key/Base URL/Endpoint 执行与无副作用 dry-run。用户只给 Endpoint 时先用 resources resolve；转写、抽取、字幕、定位等明确产出走本 skill，开放式对话走 +chat，生成走 +gen。"
+description: "arkcli +understand：对用户提供的图片、音频、视频或文档完成转写、抽取、字幕、定位等 12 类专项产出。仅解释参数或排查已有多模态请求报错时转 arkcli-chat；实际理解任务支持临时凭证与本地 dry-run，开放对话走 +chat，生成走 +gen。"
 metadata:
   requires:
     bins: ["arkcli"]
@@ -12,6 +12,18 @@ metadata:
 
 **CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../arkcli-shared/SKILL.md`](../arkcli-shared/SKILL.md)，其中包含认证闸门、API Key 错误恢复、配置排查与命令选择顺序。**
 **CRITICAL — 执行 `+understand` 之前，MUST 先用 Read 工具读取 [`references/arkcli-understand.md`](references/arkcli-understand.md)（命令/flag/返回值/错误）与 [`references/sub-skills.md`](references/sub-skills.md)（12 个 sub-skill 的用途与期望输出形态）。禁止凭印象拼命令。**
+
+## 先区分理解任务与调用问题
+
+| 本轮要交付什么 | 执行边界 |
+| --- | --- |
+| 对具体素材转写、抽取、翻译或定位 | 使用本 Skill 的配方；缺少素材时补齐输入，不能凭空生成素材或理解结果 |
+| 解释音频/多模态参数、比较接口，或排查已有请求的字段报错 | 读取 [`../arkcli-chat/SKILL.md`](../arkcli-chat/SKILL.md) 的请求证据与条件修复；本轮交付诊断说明，到此结束，不进入后文业务准备 |
+| 同时要求解释错误并实际处理素材 | 分开记录两项交付；只在已提供素材、调用目标和实际执行授权的范围内处理，不用新请求的结果替代原错误证据 |
+
+`+understand` 的实现走 Responses API，只能说明这个 CLI 命令的行为，不能说明用户原来的音频 SDK、Chat 请求或网关也走 Responses。单凭 `unknown field` 不能判定实际接口；原 URL、模型版本或请求体缺失时保留未知，按 Chat Skill 给出条件分支。仅有“音频理解”“转写参数”等字样不会启动配方执行。
+
+参数诊断无需先准备认证、解析默认资源或选择下表的 fallback 模型。用户未提供原模型时，不自行选另一个模型查询上限并据此解释原请求；已知模型的只读能力查询也须在本次允许的工具范围内。只有本轮确实要求实际处理素材或授权复现，才进入后文执行顺序。
 
 ## 核心概念
 
@@ -33,7 +45,7 @@ metadata:
 | 开放式带图/视频对话、追问、推理、需要多轮接续（`--store`/`--previous-response-id`）、需要 tools（web_search/function）或 `--text-format json_schema` 严格 JSON | [`../arkcli-chat/SKILL.md`](../arkcli-chat/SKILL.md) |
 | **生成**图片 / 视频（不是理解已有素材） | [`../arkcli-gen/SKILL.md`](../arkcli-gen/SKILL.md) |
 
-一句话判据：**任务能映射到下面某个 sub-skill 名 → 用 `+understand`；否则开放对话用 `+chat`，生成用 `+gen`。**
+一句话判据：**要求实际处理素材且产出对应某个 sub-skill → 用 `+understand`；仅询问参数或报错 → Chat 诊断；开放对话用 `+chat`，生成用 `+gen`。**
 
 ## Agent 快速执行顺序
 

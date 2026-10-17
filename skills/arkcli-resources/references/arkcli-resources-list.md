@@ -18,17 +18,18 @@ profile.Type:
                → GetFoundationModel → task_types/filter_task_types;
                unknown 保留但标 modality_confidence=unknown 并在 stderr 告警)
   agent-plan
-    text     → ListAgentPlanLatestModel
+    text     → ListAgentPlanVirtualModelID (Edition=personal, BizInfo=PlanTier)
     image    → AgentPlanImageModels  (硬编 console snapshot)
     video    → AgentPlanVideoModels  (硬编 console snapshot)
   coding-plan
-    text     → ListArkCodeLatestModel (必传 AccountID, 从 SSO 派生)
+    text     → ListCodingPlanVirtualModelID (Edition=personal, BizInfo=PlanTier)
     image    → 借道 platform ListEndpoints + modality filter (S10, commit f69be53)
     video    → 同 image
   agent-plan-team
-    text/image/video → 与 Agent Plan 使用相同模型池，但凭证语义是 team_seat
+    text     → ListAgentPlanVirtualModelID (Edition=enterprise, BizInfo=席位档位)
+    image/video → 与 Agent Plan 使用相同模型池，但凭证语义是 team_seat
   coding-plan-team
-    text     → Coding Plan 模型 + team_seat
+    text     → ListCodingPlanVirtualModelID (Edition=enterprise, BizInfo=席位档位) + team_seat
     image/video → platform Endpoint；team_seat 不可调用，required_overrides=["api_key"]
 ```
 

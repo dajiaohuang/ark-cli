@@ -1,7 +1,7 @@
 ---
 name: arkcli-docs
 version: 2.0.0
-description: 检索、读取与总结方舟官方文档。用户给出 ark.volcengine.com 文档 URL 或 /docs/ 路径、要求读链接、官方说明、API 契约或必填字段，询问 CC Switch 等第三方客户端的方舟图形配置流程，以及官方网页读取失败时使用。不用于业务调用、资源操作、CLI 帮助或通用知识。
+description: 查阅方舟官方文档，整理豆包模型接入教程、调用指南并输出文档或附件；用户没说“官方”或没给链接也适用。承接 ark.volcengine.com URL、/docs/ 路径、API 契约与必填字段，以及 CC Switch 等客户端的方舟图形配置说明，官方网页读取失败时可用。不用于账号资源查询、CLI 帮助、纯格式转换或付费模型代写。
 metadata:
   requires:
     bins: ["arkcli"]
@@ -22,7 +22,9 @@ metadata:
 
 ## 唤起信号（When To Trigger）
 
-明确的官方文档请求、第三方客户端 GUI 中的方舟接入步骤（如 CC Switch 选豆包）或其他 skill 委托的产品知识问题由本 skill 承接；先按下方反唤起清单确认最终目标。不要把 docs 当成不知道该用哪个命令时的兜底入口。
+整理方舟/豆包接入教程、调用指南或配置说明，即使用户只说“整理成文档发给我”、没有官方链接，也先由本 Skill 核实产品事实，再交给宿主的文档/附件工具排版交付。先列所需主题，未给路径时搜索对应官方资料并读取正文；不能先根据账号资源或 Key 列表写完整教程再补来源。代码示例按需委托 `arkcli-code-example`，不把“生成文档”自动理解为付费调用模型写作。
+
+明确的官方文档请求、第三方客户端 GUI 中的方舟接入步骤（如 CC Switch 选豆包）或其他 skill 委托的产品知识问题也由本 skill 承接；先按下方反唤起清单确认最终目标。只转换用户已给材料的格式不要求重新检索。不要把 docs 当成不知道该用哪个命令时的兜底入口。
 
 问 CC Switch 里如何选豆包时，优先定位对应套餐的官方 Claude Code「使用 CC Switch」章节，核对 GUI 槽位、专属 Key、Base URL 和 Model Name；不能把通用第三方工具文档的 `/api/compatible` 当成 Coding Plan 或 Agent Plan 的默认地址。用户未说明套餐时，分别说明已核实的 Coding Plan、Agent Plan 与按量接入条件，再请其选定；当前套餐支持的豆包模型名用对应 `arkcli plans model-list --plan <plan>` 校准。该控制面查询若因宿主凭证失败，只能给标明来源与套餐的文档示例，不能宣称是当前账号实时可选清单。
 
@@ -38,11 +40,17 @@ metadata:
 | 搜索官方文档中的关键词，或未提供路径的知识检索 | `docs search "<关键词或问题>"`；每页 N 条用 `--top-k N` |
 
 给定官方文档 URL 就直接读取，包括“读这篇”“总结链接”“查某节”；不先做通用搜索。
-WebFetch 失败不代表正文不可用，同一个 URL 可交给 `docs get` 的 CDN 链路。
+WebFetch 失败不代表正文不可用，同一个 URL 可交给 `docs get` 的公共文档链路。
 
 ## 回答前核对
 
-面向用户引用正文时，使用同一次正文读取返回的文档站 `url`，以文档标题为链接文字，并保留返回的章节锚点。`source_url` 是实际读取的 CDN Markdown 来源，用于核对正文；仅在用户需要原始 Markdown 或版本取证时额外提供并明确标注。CLI 续读仍用 `url` 与 `snapshot`，不要把 `source_url` 传给 `docs get`。MCP 沿用返回的 `url`；仅有大纲不构成正文依据。
+用户要把接入教程整理成可下载文档时，先将所需主题列为交付清单；每段SDK示例按实际读取的SDK/版本核对import、调用方法、参数层级和输出字段，必要时读取[`../arkcli-code-example/SKILL.md`](../arkcli-code-example/SKILL.md)。错误排查表的每一行须分别核对HTTP状态、产品返回的`error.code`及适用条件：没有产品错误码来源时，只能写已核实的HTTP状态或症状，不用通用HTTP名称拼出产品Error.Code，也不从邻近服务补写错误名、开通条件或固定时效。未找到依据的行删去或明确待核实，不能以教程需要“完整”而补造。
+
+交付前读取实际保存的整份文档，逐项核验上述代码与错误表。把正文、表格和代码块中的模型 ID、版本号列成去重清单，与本轮工具结果或已读官方来源逐项对应；直接复制原始值，不凭日期、相近名字或记忆补版本。发现无来源的值就删除或换成明确占位，修正后重新读取文件确认所有出现位置一致。不同产品/协议的合法别名须分别保留来源，不能为了统一字符串把它们改成同一个 ID。文件大小、章节数量或格式能打开不代表事实校验通过。
+
+保留实际来源链接，示例模板与已运行结果分开。整理官方资料不等于用户要求付费模型重新生成正文；用户明确指定模型生成时才交回`arkcli-chat`并遵守真实输出与长文交付流程。未运行的代码不能标为实测通过，真实API Key或其他凭证不得写进教程附件。
+
+面向用户引用正文时，使用同一次正文读取返回的文档站 `url`，以文档标题为链接文字，并保留返回的章节锚点。`source_url` 是实际读取的 Markdown 来源，用于核对正文；仅在用户需要原始 Markdown 或版本取证时额外提供并明确标注。CLI 续读仍用 `url` 与 `snapshot`，不要把 `source_url` 传给 `docs get`。MCP 沿用返回的 `url`；仅有大纲不构成正文依据。
 
 - 按用户的问题逐项核对正文。比较能力时，把每个表格单元格的文字、图片 alt 与行列标题一起读取；没有文字语义的图标标为待核实，不从相邻能力推导支持情况。
 - 字段与代码保留完整对象层级，分别核对请求、响应、嵌套元素及 SDK 便捷属性。`required`、是否可省略、`default` 是三个不同事实：可选不等于有默认值；只有 schema 的 `default` 或已读官方正文明确声明时才写默认值，否则写“未声明”。`oneOf` / `anyOf` 及按 `role` 区分的对象必须逐分支表述：一个分支必填不等于所有对象必填，“A 或 B 至少其一”不能写成“A 必填”。用户只需顶层字段时，不扩写未经逐分支核对的嵌套规则。示例、客户端源码和 dry-run 不能代替官方请求 schema。
@@ -53,11 +61,17 @@ WebFetch 失败不代表正文不可用，同一个 URL 可交给 `docs get` 的
 - 每项结论引用实际承载该证据的读取结果 URL，不凭相近标题替换来源。字段迁移表每一行都要能在已读正文或 schema 中找到依据；删去未核实的行，或先读取并单独引用补充来源，不把跨来源知识归给当前页面。答案中不以“全部来自本文”“无遗漏”等自我保证代替逐项依据。发送前逐项检查答案中的否定和排他词（如“仅”），与承载该结论的原句对照，删掉概括时新增的限制。依据充分就作答，无须额外堆叠交叉印证；缺少依据时说明缺口，不用记忆补齐，也不在读完后声称还有分块待取。
 - 输出第 N 页的条目前，必须实际执行该页 `docs list` / `docs search`，核对返回的 `items` / `results`；保存到文件时先读回完整 JSON。第一页的 `has_more`、`snapshot` 和 `next_offset` 只能决定下一条命令，不能充当第二页内容。续页未完成就只报告已读页和缺口，不根据目录顺序或记忆补写条目。
 
+## 错误后的恢复
+
+- `validation` 或 `not_found` 后先读 `error.hint`。链接被拒绝时，若输入保留了 `/docs/<slug>`，优先用 `docs list --query "<slug>"` 确认当前目录；从当前产品 `docs list` / `docs search` 返回的 `url` 重新定位；不要改域名、猜 slug 或把旧 CDN `source_url` 反复传给 `docs get`。目录确认不存在时如实报告，停止重复读取同一路径。
+- 公共文档后端先判断是否已结束：上次成功响应或用户明确提供的续读状态为 `has_more=false`，直接说明已读完并结束，不再执行 `docs get/list/search`；即使缺少完整原响应、正文或 snapshot，也不为补齐证据而重读，除非用户明确要求刷新或重新读取。只有 `has_more=true` 才用原样的 `next_chunk_start` 和 snapshot 续读。仅在确实仍有未读内容且原续读状态无法恢复时，才从第 0 块开始新读取并单独保存，不拼接不同快照。只解释已有字段和停止决定，不补写未观察到的网络请求细节。
+- 相同输入的校验错误不要重试。按提示修正后若仍是同一错误，停止该分支并报告缺口；只有网络或服务暂时不可用才按共享协议有界重试。未配置 Profile / 未登录先转认证，缺 MCP 配置先核对当前产品和后端，不用重复 Docs 调用探测。
+
 ## 六条使用纪律（比参数表重要）
 
 ### 1. search 与 get/list 是两条独立链路，可用性不同
 
-- `search` 走签名的 OpenTOP Action（控制面，需要登录身份）；`get` / `list` 读产品 CDN 上已发布的目录与 Markdown。两者的后端、上线节奏、故障域都不一样。
+- `search` 走签名的 OpenTOP Action（控制面，需要登录身份）；`list` 读产品 CDN 已发布目录；火山公共后端 `get` 读页面同名 `.md`，旧 snapshot 续读仍走不可变 CDN Markdown。两者的后端、上线节奏、故障域都不一样。
 - **搜索失败或零命中，都不构成「文档里没有这个内容」的证据。** 必须先降级到 `arkcli docs list --query "<原查询>"` 在已发布目录里本地过滤，确认后再下结论。不要线性翻完全部目录。
 - 零命中时 CLI 返回的 `next_action` 就是这条降级指引；搜索链路故障时错误里的 `hint` 字段同样给出降级路径。**照它做，不要改成「换个搜索词再试十次」。**
 - `InvalidActionOrVersion` 后停止 `search`；没有后端已恢复的新证据，不在目录降级之后再次安排搜索。
@@ -71,9 +85,9 @@ WebFetch 失败不代表正文不可用，同一个 URL 可交给 `docs get` 的
 - 这种情况下**绝对不能把 `snippet` 当全文用来回答问题**。`snippet` 是片段，不含前提、限制、完整代码。
 - 正确处置：用 `docs list` 找到该主题的当前路径，或用别的搜索结果重试；拿不到正文就明确告诉用户「这篇文档当前读不到」。
 
-### 3. 正文含未降级的自定义 DSL
+### 3. 正文可能含自定义 DSL
 
-已发布 Markdown 剥掉了 frontmatter、补齐了 H1，但**保留了文档站的自定义排版标签**，CLI 不做降级。实测一篇 9 KB 文档里能出现几十个。你会遇到：
+火山公共后端读取文档页面 URL 对应的同名 `.md`，常见排版已序列化为标准 Markdown：提示引用块、并列 Tab 小节和标准链接。Tab 是并列的替代方案，应按用户场景分别读取，不拼成一个流程。旧 snapshot 和部分内嵌内容仍可能**保留文档站自定义排版标签**；CLI 不自行降级。实测一篇 9 KB 文档里能出现几十个。你会遇到：
 
 `<Card>`、`<Columns>`、`<ColumnsItem>`、`<Tabs>`、`<Tab>`、`<Note>`、`<Tip>`、`<Warning>`、`<Danger>`、`<APILink>`、`<Attachment>`、`<RenderMd>`、`<span id="...">`，以及尾部带 `{target="_self"}` 属性块的非标准内联链接。图片是绝对 CDN URL。
 
@@ -87,16 +101,16 @@ WebFetch 失败不代表正文不可用，同一个 URL 可交给 `docs get` 的
 
 本节适用于公共后端。MCP 从一开始就用 `arkcli docs get "<返回的 url>" --chunk-start <next_chunk_start> --chunk-count 1 --compact` 续读，不传 snapshot，也不声称版本固定。每次只生成下一次读取，拿到新结果后再判断是否继续，不预排后面的块。
 
-- `snapshot` 把「哪个发布版本 + 哪套分块边界」钉死，是续读的唯一正确方式。
+- `snapshot` 固定目录版本、正文摘要和分块边界，是续读的唯一正确方式。同名 `.md` 更新或目录文档变化时，续读返回 `snapshot_expired`，必须重新开始，不能拼接新旧正文。
 - 续读必须带**同一个** snapshot；`--chunk-start > 0` 时 snapshot 必填。
 - snapshot 是不透明字符串，完整复制或从保存的 JSON 提取，不手工重写。只有 `has_more=true` 才用返回的 `next_chunk_start` 续读；已到末尾就说明读完，不猜下一块。
 - 少量条目的翻页直接在每次独立 `arkcli docs list` / `search` 命令中读取 JSON；输出过大才按 `references/commands.md` 保存并读回完整 JSON、提取 snapshot 和下一位置。续页报错先逐字核对实际入参与原响应；抄错应纠正，不删 snapshot、不把错误定位符造成的 404 归因于 CDN 或 offset。
 - `list` 翻页必须带同一个 snapshot，**同时保留原 `--query`（如有）**；snapshot 不保存筛选条件。用 list 返回的 snapshot 去 `get`，读到的就是列表里那个版本。
 - 从大纲定位章节时，`--section` 必须同时带大纲返回的 `--snapshot`，保证锚点与正文来自同一发布版本。
-- 章节自身还有下一块时，保留 `--section "#<返回的 section.id>"`，使用**章节读取返回的新 v2 snapshot** 和 `next_chunk_start`。不能继续使用大纲的整页 snapshot，也不能省略 section 后按整页偏移读取。尚未拿到章节响应时，只安排首块章节读取。
+- 章节自身还有下一块时，保留 `--section "#<返回的 section.id>"`，使用**章节读取返回的新 snapshot** 和 `next_chunk_start`。不能继续使用大纲的整页 snapshot，也不能省略 section 后按整页偏移读取。尚未拿到章节响应时，只安排首块章节读取。
 - 大纲后的章节读取若需回退到整页，仍带大纲返回的 snapshot；不要因改为整页读取而丢掉版本定位符。
 - 收到 `snapshot_expired` 时**从头重取**（去掉 `--snapshot`，`--chunk-start` 回 0），**不要猜 offset、不要拼接不同版本的内容**。
-- `--section` 返回的是 v2 章节 snapshot，**绑定到具体章节**：不能拿它读另一个章节、另一篇文档，也**不能喂给 `docs list`**。换章节就去掉旧 snapshot 从 chunk 0 重开。
+- `--section` 返回的是章节 snapshot，**绑定到具体章节**：不能拿它读另一个章节、另一篇文档，也**不能喂给 `docs list`**。换章节就去掉旧 snapshot 从 chunk 0 重开。
 - snapshot 是定位符，不是凭证。它不绕过产品隔离，也不能读已下线文档。
 
 ### 5. `score` 不能设绝对阈值
@@ -117,7 +131,7 @@ WebFetch 失败不代表正文不可用，同一个 URL 可交给 `docs get` 的
 - `apis spec` 当前不返回文档站地址。需要提供参数文档链接时，按接口名或标题用 `docs search` / `docs list` 定位，再用 `docs get` 核对是同一接口及对应参数页，引用其 `url`。`api_path` 是请求路径，不能当文档链接；未找到对应页面时说明缺口，不拼造 URL，也不把仅由 schema 确认的细节归给未核实的正文。
 - API 参数的每项“必填”结论注明来自已读 schema 还是已读正文；正文若只读到 `messages`，不能称 `model` 也已由正文确认。示例中出现字段不能证明必填。schema 内的 `externalDocs.url` 只是候选入口；未经同一产品 `docs get` 核对对应参数页，不把它作为已验证页面额外附给用户。
 - 大 schema 直接使用 `references/commands.md` 的 Python 管道示例输出请求结构与必填字段。`spec` 没有 `--output` 参数；`--transform` 只投影外层字段。`content` 是 JSON 字符串，须 `json.loads` 后读取，不能因其不是 dict 就停止。保存到文件后也必须读取并输出相关结构；文件大小或外层 keys 不是请求字段证据。
-- `search` 仍走 OpenTOP，`get` / `list` 仍读文档 CDN。不要为了 API 契约去改这两条链路。
+- `search` 仍走 OpenTOP，`list` 仍读文档 CDN，火山 `get` 读取页面同名 `.md`。不要为了 API 契约去改这两条链路。
 - `--api-mcp-url`、`ARK_DOCS_API_MCP_URL`、`--docs-mcp-url`、`ARK_DOCS_MCP_URL`、`ARK_MCP_URL` 任一存在时，`apis` 改走 MCP，不再读公开目录；MCP 不支持 `--id`。
 - BytePlus 公开目录发布的是 **英文线契约**（wire contract）：路径、字段名、类型可用，人工描述可能为空或未翻译。如实使用，**不要**改读中文站点 JSON，也**不要**从搜索片段拼 OpenAPI。
 
@@ -176,7 +190,7 @@ ARKCLI_NO_UPDATE_NOTIFIER=1 ARKCLI_CALLER_TYPE=ai_agent ARKCLI_CALLER_NAME=<agen
 
 `list`：`items[]` 含 `title` / `url` / `description` / `breadcrumbs`；顶层有 `total`（当前目录可见文档数，**不是**搜索候选数）、`has_more`、`next_offset`、`revision`、`snapshot`、`next_action`。
 
-`get`：`title`、`breadcrumbs`、`url`（面向用户引用的文档站地址，也是 CLI 文档定位地址）、`source_url`（正文读取实际使用的 CDN Markdown 来源，用于取证核对）、`content`、`chunks[]`、`total_chunks`、`has_more`、`next_chunk_start`、`revision`、`snapshot`、`next_action`，以及用了 `--section` 时的 `section{id,title}`。`--compact` 只输出一份正文在 `content`，省掉 `chunks` 和 `raw_text`，其余引用/续读字段全保留。
+`get`：`title`、`breadcrumbs`、`url`（面向用户引用的文档站地址，也是 CLI 文档定位地址）、`source_url`（正文读取实际使用的 Markdown 来源，用于取证核对）、`content`、`chunks[]`、`total_chunks`、`has_more`、`next_chunk_start`、`revision`、`snapshot`、`next_action`，以及用了 `--section` 时的 `section{id,title}`。`--compact` 只输出一份正文在 `content`，省掉 `chunks` 和 `raw_text`，其余引用/续读字段全保留。
 
 `get --outline`：返回 `headings[]`（每项 `id` / `title` / `level`）和引用、snapshot 元数据；**`content` 为空字符串，省略 `chunks`**，不下载正文。`headings[].id` 就是发布侧锚点，可直接作为 `--section "#<id>"`。
 

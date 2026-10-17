@@ -42,9 +42,11 @@ arkcli docs list --query "Responses" --limit 2 --snapshot "<第一页实际返�
 不能替代第二页的 `items`。续页仍作为下一次独立的 `arkcli docs list` 命令执行，
 不要藏在 Python 子进程中。上述命令示例均需添加调用归因前缀。
 
-正文续读同理：从首个 get JSON 提取 `url`、`snapshot`、`next_chunk_start`，
-传给 `docs get` 的 `--snapshot`、`--chunk-start`，保留原 chunk-count。
-定位符不一致时先纠正；原值不可恢复才从第一页重新开始，不带旧 offset，也不混合版本。
+正文续读先判断结束状态：上次成功响应或用户明确给出的状态为 `has_more=false` 时，
+直接说明已读完，不再查询；完整正文、snapshot 或原始 JSON 不在上下文中也不改变这个决定。
+用户明确要求刷新或重新读取时才开启新读取。只有 `has_more=true` 才从原响应提取
+`url`、`snapshot`、`next_chunk_start`，保留原 chunk-count 继续。仅在确实仍需未读内容、
+且续读定位符无法恢复时才从第 0 块开始新读取，不带旧 offset，也不混合版本。
 
 ## 目录统计与完整标识
 
@@ -210,7 +212,7 @@ MCP 不支持 `--snapshot`、`--section`、`--query`、`--outline`、search `--o
 
 ## 引用纪律
 
-- 面向用户使用正文读取返回的文档站 `url`，以文档标题为链接文字；章节读取返回的锚点原样保留。`source_url` 记录实际读取的 CDN Markdown 来源，用于核对正文，只有用户需要原始 Markdown 或版本取证时才另行展示并标注。CLI 续读仍用 `url` 与 `snapshot`；MCP 使用返回的 `url`，大纲不充当正文依据。
+- 面向用户使用正文读取返回的文档站 `url`，以文档标题为链接文字；章节读取返回的锚点原样保留。`source_url` 记录实际读取的 Markdown 来源（火山新读取为页面同名 `.md`，旧 snapshot 为 CDN），用于核对正文，只有用户需要原始 Markdown 或版本取证时才另行展示并标注。CLI 续读仍用 `url` 与 `snapshot`；MCP 使用返回的 `url`，大纲不充当正文依据。
 - `apis spec` 不返回文档站地址。需要参数文档链接时，用接口名或标题经 `docs search` / `docs list` 定位，再 `docs get` 核对同一接口及对应参数内容，引用返回的 `url`。例如查询 `CreateModelCustomizationJob` 后仍需定位其请求参数页，不能把 `api_path` 或 schema 资源路径当作页面地址；未找到页面时说明缺口，参数结论仍以实际读取的 schema 为依据。
 - 只使用命令返回的 URL 和 snapshot 原值。不要编造文档 ID、MCP 地址、snapshot、
   API 路径或 schema。

@@ -13,7 +13,7 @@
 2. 认证问题
    - 先看 `arkcli auth status`
    - 控制面鉴权错误（OpenTOP Action） → 转 `arkcli auth login`，并参考 [`../../arkcli-auth/references/auth-modes.md`](../../arkcli-auth/references/auth-modes.md) 的"控制面用 STS 还是长效 AK/SK"
-   - 数据面 API Key 鉴权 / 权限错误（Runtime 调用） → 参考 [`../../arkcli-auth/references/auth-modes.md`](../../arkcli-auth/references/auth-modes.md) 的"API Key 模式的错误恢复"。**命令失败且症状=key 失效 / `InvalidApiKey` / 突然 401 且没主动换过 key**（疑似后端轮换）→ 先 `arkcli profile keys refresh` 同步后端 key 再重试一次（最轻的反应式自愈，agent 可自动跑）；**仅在失败时触发，不要每次命令前预防性 refresh**。refresh 救不了（权限不足 / env 覆盖 / SSO 过期）再 `arkcli auth apikey` 或重登
+   - 数据面 API Key 鉴权 / 权限错误（Runtime 调用） → 参考 [`../../arkcli-auth/references/auth-modes.md`](../../arkcli-auth/references/auth-modes.md) 的"API Key 模式的错误恢复"。**命令失败且症状=key 失效 / `InvalidApiKey` / 突然 401 且没主动换过 key**（疑似后端轮换）→ 先 `arkcli profile apikey refresh` 同步后端 key 再重试一次（最轻的反应式自愈，agent 可自动跑）；**仅在失败时触发，不要每次命令前预防性 refresh**。refresh 救不了（权限不足 / env 覆盖 / SSO 过期）再 `arkcli auth apikey` 或重登
 3. profile / Base URL / Region / API Key / Project 覆盖混乱
    - 普通诊断先用 `arkcli auth status --format json` 与 `arkcli auth whoami --format json` 查看当前身份/Profile 摘要；默认模型与路由转 `arkcli resources list --format json`。
    - 只有用户显式要求核对持久 Profile 时才执行 `arkcli profile show [name]`，并先说明它可能同步远端 Key、回写本地 Key 库存或默认 Key。脱敏输出不代表无配置副作用。

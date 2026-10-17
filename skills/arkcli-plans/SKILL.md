@@ -14,6 +14,18 @@ metadata:
 **CRITICAL — 任何 `plans buy` / `plans renew` / `plans personal rotate-apikey` / `plans team seat-assign` / `plans team rotate-apikey` 在执行之前，务必先用 Read 工具读取对应 `references/*.md`，禁止盲目调用。**
 **CRITICAL — Token 额度包 / Token 资源包是 platform 按量计费产品，不是本 skill 管理的 Agent Plan / Coding Plan。不得因「套餐」或价格字样调用 `plans get/buy/renew`；转 [`arkcli-profile`](../arkcli-profile/SKILL.md) 解释 `platform` + `/api/v3` 归属。**
 
+## 专属 Key 与协议错误的证据边界
+
+- `profiles_summary.api_key_count=0` 只说明本地库存，不能说明服务端没有专属 Key。排查 Agent Plan 个人版时先保留 `plans get` 的真实订阅状态，确需查 Key 再按 [认证查询契约](../arkcli-auth/references/api-key-query.md)用已注册 `apikey.list` 与 `Filter.Scene=RealAgentPlanPersonal` 查完整元数据；不取普通池代替，不自动导出明文、补购或创建 Key。
+- `plan_agreement_identity_required` 表示当前控制面身份不足，签署状态未获核验；`plan_agreement_status_unavailable` 表示状态查询失败。二者都不证明 `IsSigned=false`，也不证明签署后会自动补配 Key。只有真实服务端 `NeedCheckAgreement/IsSigned` 或明确 required 结果才按 [协议契约](references/arkcli-plans-agreement-signing.md)说明签署需求；恢复服从当前宿主身份协议，不切其他账号或绕过闸门。
+- 轮换是让旧 Key 失效的写操作。前置身份/协议被拒或结果不确定时先交付原错误与未确认项，不换 Profile 后反复执行；成功只能依据真实轮换回执，后续只读验证与再次轮换不能混为一谈。
+
+## 已有 Endpoint 的 Claude Code / CC Switch 排障
+
+用户已经创建平台 API Key、开通模型并建好 Endpoint 时，先保留这条资源链，按 Anthropic 兼容入口 `.../api/compatible`、平台 Key、原 `ep-...` 或完整模型 ID 核对配置；地址沿用实际 Region/环境，不把 OpenAI `/api/v3` 直接当 Anthropic Base URL。账号存在 Coding 订阅、或另一个 `/api/coding` 请求成功，不能证明用户要改用套餐，更不能宣称 Endpoint 在兼容路径不可用。
+
+只有用户明确选择套餐时才按 `.../api/plan` 或 `.../api/coding` 与套餐模型配置；Key 来源按类型核实：Agent Plan 个人版专属 Key，Coding Plan 个人版与 platform 共用普通 Key 池，团队版为当前有效席位 Key。不能概括为“所有套餐共用一把 Key”或“所有套餐都有专属 Key”。不打印 Key、不为排障轮换/切换 Profile，也不删除已建资源。未提供原配置/错误时给条件化核对；另一条请求的结果只能说明该路径，未经实测不能承诺换配置一定成功。
+
 ## Agent Plan 控制台的超额后付费入口
 
 用户问订阅页为何没有「超额后付费管理」按钮时，这是控制台套餐问题，不是 `arkcli helper` 的本机 TTY 矩阵问题。先用 `arkcli plans get` 核对当前身份是否持有生效的 Agent Plan 个人版或团队版；控制面查询失败时如实说明订阅状态未知，不把凭证错误当成未订阅。再读取官方[超额后付费管理](https://ark.volcengine.com/region:cn-beijing/docs/agent-plan-personal-over-quota-postpaid-management)正文核对当前页面路径和前提，不用 Helper 状态代替控制台页面事实。
@@ -24,7 +36,7 @@ metadata:
 
 用户明确说 Agent Plan 中某个旧模型不见了，或问下线短信后是否要重设时，先读 Agent Plan 官方[模型下线公告](https://ark.volcengine.com/region:cn-beijing/docs/agent-plan-personal-model-deprecation-announcement)中**该模型所在行及较新的后续迁移行**，直接交付公告的停止新用户、正式停服时间与建议迁移模型；不要横查 Coding Plan 的模型概览或在多篇无关文档中耗尽本轮。公告是产品时间表，不是当前账号实时查询；用户问“我现在还可用吗”时再用 `arkcli plans model-list --plan agent-plan --format json` 核对本账号清单，失败就明确实时状态未知，不把 STS 错误当作模型已不可用，也不因模型广场仍显示 Published 就推翻套餐下线公告。
 
-问“需要重新设置吗”时按配置类型区分：使用 `auto`/`ark-code-latest` 等自动路由者一般不需要改工具中的固定模型名；工具里写死旧 Model Name 者需在停服前改为**当前仍受支持**的目标并验证；本人自建且绑定旧模型的 `ep-...` 另需核对并迁移 Endpoint。不能从订阅存在或公告本身推断用户属于哪种配置；无法读到本人配置/资源时给条件化操作，不替用户改配置或创建接入点。若公告先推荐的迁移模型也进入后续下线期，以该公告更新的迁移链和当前支持列表为准，不把旧建议当永久可用。
+问“需要重新设置吗”时按配置类型区分：客户端使用 `ark-code-latest` 并跟随控制台路由（可选 Auto）者一般不需要改工具中的固定模型名；工具里写死旧 Model Name 者需在停服前改为**当前仍受支持**的目标并验证；本人自建且绑定旧模型的 `ep-...` 另需核对并迁移 Endpoint。不能从订阅存在或公告本身推断用户属于哪种配置；无法读到本人配置/资源时给条件化操作，不替用户改配置或创建接入点。若公告先推荐的迁移模型也进入后续下线期，以该公告更新的迁移链和当前支持列表为准，不把旧建议当永久可用。
 
 ## 购买意图的逐步收参与失败重入
 
@@ -94,10 +106,12 @@ metadata:
 
 ## 套餐资源与接入配置的证据边界
 
+- 第三方客户端报 `404 model or endpoint ... does not exist or you do not have access` 时，先保留错误原文中**实际被拒绝的 model 字符串**，核对客户端最终请求的 URL、协议、Key 所属套餐及 `model` 字段。`plans model-list --plan <plan>` 中缺席只能证明该套餐清单当前没有此名称，不能推出公共模型已全局下线；`models get <完整ID>` 显示公共目录可用，也不能推出该套餐或当前账号可调用。若错误只回显短名、前缀或展示名，先按真实 `output_name` 与请求值比对；缺原始请求就列出“名称格式、套餐支持、调用通道”三个待核查方向，不把公告日期或清单缺席单独定为这次 404 的根因。
 - `plans model-list` 列的是套餐文本/路由模型，**不是图片、视频资源的完整目录**。用户问“我的 Agent Plan 能否生图/有哪些图片模型”时，先从本轮 `arkcli auth status --format json` 的 `profiles_summary[]` 按 `type=agent-plan` / `agent-plan-team` 找到实际 `name`，再执行 `arkcli resources list --profile <完整 name> --modality image --format json`，读取 `items[].id`、`resource_kind`、`invocable` 和 `is_default`。`--profile` 要填完整 Profile 名，不是 `agent-plan` 这样的类型字面量；多个同类型候选需核对身份/项目，不能猜选。不能因 `plans model-list` 没有 Seedream 就回答“不支持生图”，也不把示例数量当当前权益。
 - “Coding Plan 下的接入点”要区分订阅、文本路由与 `ep-xxx` 推理接入点：`ark-code-latest` 是套餐模型路由别名，**不是一个 `ep-xxx` Endpoint**。用对应 Coding Plan Profile 的 `resources list --modality text --format json` 核对 `items[].resource_kind` / `id` 后回答是否存在 `ep-xxx`；不能用 `plans get` 查到订阅就推翻“没有接入点”的候选结论。Coding Plan 的图片/视频另走 platform Endpoint 池与后付费 Key，见 [`arkcli-resources`](../arkcli-resources/SKILL.md)。
 - 给 SDK、Claude Code、OpenCode 等配置 Plan 时，先确认 Profile 类型：Agent Plan 数据面为 `/api/plan/v3`，Coding Plan 为 `/api/coding/v3`；普通 platform 才是 `/api/v3`。个人 Agent Plan 专属 Key、个人 Coding Plan 使用的普通池 Key、团队席位 Key 不可混用；只从本轮身份/Key 元数据与对应 [Profile 类型矩阵](../arkcli-profile/SKILL.md)确认，不把一个套餐的 Key 指向另一条计费路径。
-- `plans model-list` 返回的展示名是 `model_name`，Plan 数据面及 Agent 配置中的 `model` **优先填 `output_name`**（如实际返回的 `auto` 或无日期尾缀名称），仅在该字段为空时按 [model-list 字段口径](references/arkcli-plans-model-list.md) 回退；带版本的 `model_id` 主要用于精确查询/路由目标控制面写入，不能见到 `selected_model_id` 就直接抄进客户端环境变量。用户贴配置模板时逐个数清占位字段，不补造未出现的槽位。
+- `plans model-list` 同时返回具体模型和路由选项。展示用 `model_name`，具体模型的客户端 `model` 按当前套餐文档及实际 `output_name` 配置；`model_id`/`selected_model_id` 用于精确查询或识别控制面路由选择，不能直接照抄成客户端模型名。**Coding Plan 的 `auto` 是控制台/`plans model-apply` 的路由选项，即使 `output_name=auto` 也不能写进客户端 Model Name。**要跟随控制台（含 Auto）选择，客户端配置 `ark-code-latest`；直接指定模型时使用文档支持的具体名称。这两种配置分别说明，不用“填 auto”概括。其他套餐的特殊别名同样先核对本套餐文档，不跨套餐泛化。
+- 问页面位置时交付已核实的页面入口；附模型清单则保留当前默认值和明确档位限制。用户要求全部清单时逐项列全或提供完整附件，不能以“例如”子集冒充全量。只问页面/配置方法不执行 `model-apply`；用户贴配置模板时逐个数清占位字段，不补造未出现的槽位。
 - 用户问“我的 Plan Key 在哪/怎么取”时先转 [`arkcli-auth` 的 Key 查询与交付](../arkcli-auth/references/api-key-query.md) 定位目标；`apikey.get_raw`/`profile apikey get` 有条件提供读取能力，**不能声称 CLI 只能轮换、不能读取已有 Key**。导出受 Access 与宿主限制，失败应如实报告；查询失败绝不自动触发破坏性的轮换，也不在聊天中回显完整 Key。
 
 ## 适用场景
@@ -105,7 +119,7 @@ metadata:
 - 查看当前账号下持有哪些套餐 → `plans get`
 - 下单买套餐（含个人 / 团队）→ `plans buy`
 - 续费已有套餐 → `plans renew`
-- 看套餐支持的模型清单 → `plans model-list`
+- 看套餐支持的模型清单与模型规格（上下文窗口、输入/输出 token 上限、输入模态）→ `plans model-list`
 - 切换 ark-code-latest 的路由目标（Auto 智能调度或具体影子模型）→ `plans model-apply`
 - Agent Plan 个人版轮换专属 APIKey → `plans personal rotate-apikey`；Coding Plan 个人版普通 Key 不走此命令
 - 列出 / 筛选企业版席位 → `plans team seat-list`
@@ -127,8 +141,8 @@ metadata:
   - "我的套餐还剩多少 / 几号刷新" → `arkcli usage plan` 或 `arkcli usage balance --type plan`
   - "我哪个模型用得最多 / 套餐内套餐外比例" → `arkcli usage plan-details`
   - "团队席位的用量" → `arkcli usage seats --product agent-plan-team --with-usage`
-- 用户问 "Agent Plan / Coding Plan 支持什么模型"：`arkcli plans model-list --plan <plan>`
-- 用户要 "切换 ark-code-latest 底层模型 / 改成 Auto 智能调度 / 锁定某个模型"：`arkcli plans model-apply --plan <plan> --model <model-id|output-name|auto>`（**写操作**，与控制台联动；可选项先 `plans model-list` 确认）
+- 用户问 "Agent Plan / Coding Plan 支持什么模型 / 上下文多长 / 最大输入输出多少 / 是否支持图片或视频输入"：`arkcli plans model-list --plan <plan>`；只需要直接 ModelName 时加 `--mode direct`，只需要 `ark-code-latest` 路由候选时加 `--mode routing`，需要对照两类清单时使用默认 `--mode all`。`models[]` 是路由候选，`direct_models[].model_name` 才是可直接配置/调用的 ModelName，两类条目都可读取 `context_window` / `max_input_tokens` / `max_completion_tokens` / `input_modalities` / `load`
+- 用户要 "切换 ark-code-latest 底层模型 / 改成 Auto 智能调度 / 锁定某个模型"：`arkcli plans model-apply --plan <plan> --model <model-id|output-name|auto>`（**写操作**，与控制台联动；可选项先用 `plans model-list --mode routing` 确认）
 - 用户要“买套餐”：读 [buy.md](references/arkcli-plans-buy.md)，收齐 `--plan`、`--type`、`--duration`，团队版另收 `--quantity`，不要替用户做选择
 - 用户要“续套餐”：读 [renew.md](references/arkcli-plans-renew.md)，确认 `--plan`、续费月数，团队版另选已有 `--seat-ids`；保持原档位，不传 `--type` / `--quantity`
 - 使用 plan 时被拦 `plan_agreement_required`（三方渠道订单首用签署）：见 [references/arkcli-plans-agreement-signing.md](references/arkcli-plans-agreement-signing.md)；**禁止**擅自设 `ARKCLI_ALLOW_HEADLESS_PLAN_AGREEMENT` 替用户签署，引导用户在交互式终端完成签署
@@ -155,7 +169,7 @@ metadata:
 | `plans buy` | **计费**，`IsAutoPay=true` 自动扣款 | 必须先不带 `--yes` 走协议闸门 → 把 agreements 展示给用户 → 用户明确同意后加 `--yes`。详见 [协议闸门流程](#-协议闸门plans-buy--plans-renew-强制流程) |
 | `plans renew` | **计费**，自动扣款 | 同 buy 协议闸门;团队版必传 `--seat-ids` |
 | `plans personal rotate-apikey` | **原 APIKey 立即失效** | 默认走 [Y/N] 确认；提醒用户同步替换 harness 配置 |
-| `plans model-apply` | 改变套餐请求路由指向（立即生效、与控制台联动） | 非交互必须显式 `--model`；先用 `plans model-list` 确认可选目标；团队版无席位会报错 |
+| `plans model-apply` | 改变套餐请求路由指向（立即生效、与控制台联动） | 非交互必须显式 `--model`；先用 `plans model-list --mode routing` 确认可选目标；团队版无席位会报错 |
 | `plans team seat-assign` | 修改席位绑定关系 | 显式 `--bind seat-id=user-id`，自动调 IAM 反查 UserName |
 | `plans team rotate-apikey` | **原 APIKey 立即失效** | self-rotate 默认 agent-plan-team；admin batch 通过 `--seat-ids` |
 
@@ -166,7 +180,7 @@ metadata:
 | [`plans get`](references/arkcli-plans-get.md) | 读 | 列出当前账号持有的套餐（个人版 + 团队版聚合） |
 | [`plans buy`](references/arkcli-plans-buy.md) | 写（计费） | 下单购买套餐 |
 | [`plans renew`](references/arkcli-plans-renew.md) | 写（计费） | 续费已有套餐 |
-| [`plans model-list`](references/arkcli-plans-model-list.md) | 读 | 列套餐支持的模型；展示用 `model_name`，Plan 配置优先用 `output_name`，当前路由看 `selected_model_id` / `selected` |
+| [`plans model-list`](references/arkcli-plans-model-list.md) | 读 | 用 `--mode all|direct|routing` 查询双列表；`models[]` 是 ark-code-latest 路由候选，`direct_models[].model_name` 是直接 ModelName，并透出模型规格与负载 |
 | [`plans model-apply`](references/arkcli-plans-model-apply.md) | 写 | 设置 ark-code-latest 路由目标（auto 或具体影子模型） |
 | [`plans personal rotate-apikey`](references/arkcli-plans-personal-rotate-apikey.md) | 写（毁坏） | 轮换 Agent Plan 个人版 APIKey |
 | [`plans team seat-list`](references/arkcli-plans-team-seat-list.md) | 读 | 列出企业版席位 + 多维度筛选 |

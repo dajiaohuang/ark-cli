@@ -1,5 +1,22 @@
 # arkcli-agent 2026-08 最小评估用例
 
+## Todo 配置决策
+
+- 用户只要求给已有 Agent 添加 Todo：先 get，合并到多模态 toolset；新添该 toolset 时 DefaultConfig.Enabled=false，只启用 todo_write，不查询工具模型、不加 Models、不丢失基础工具。
+- 已有多模态 toolset 启用了生图并设置 always_ask：添加/禁用 Todo 不改变已有 DefaultConfig、图片模型及权限，不追加重复 toolset。
+- Todo 被错误放入基础 toolset：指出归属错误，不把拒绝归因为工具名应改成 TodoWrite；写入名始终为 todo_write。
+- 普通 Agent 遭白名单拒绝：报告前提未满足并停止，不切账号/产品或 Raw API 重试。仅配置回读成功但没有工具事件时，不声称实际调用通过。
+
+## 消息执行失败退出码
+
+- `+new session --message` 已创建 Session，但模型重试耗尽并退出 5：报告执行失败，保留 Session ID/cursor，不因创建成功而报告任务成功，不自动重发。
+- 用户提供 MA 数据面地址和临时 Key 挂载文件：使用 `session resources add`，随后用 `resources list/get` 核对；不误用 BYOK 模型地址，也不要求修改全局 Profile。
+
+- 假 BYOK 凭证：`events send --stream/--wait/--poll` 收到模型失败与 `retries_exhausted`，应识别退出码 5 和 `agent_execution_failed`；说明消息已受理、执行失败，不自动重发。
+- SSE 超时转轮询：先收到 `session.error`，补偿阶段才收到 idle，仍报告执行失败。
+- 工具报错后正常 `end_turn`：不因单次 `is_error=true` 把整轮判失败；`requires_action` 则报告待确认，不宣称已完成。
+- 不带等待参数：退出码 0 只代表受理，不宣称模型已成功回复。
+
 ## 模型运行参数查询
 
 - “这个模型 thinking 和 service_tier 支持哪些值”：先解析选中模型的 `name`，执行 `agent model config <name>`；说明各自含义，并按 `Key/Data` 报告可选值和默认值。
@@ -15,6 +32,12 @@
 - 用户提供 stg Key 和地址，当前为套餐 Profile：数据面保留显式地址，不因套餐类型拒绝；控制面仍需要有效登录。仅提供地址而没有显式 Key 时拒绝；错误 Key 如实报告服务端认证失败，不切换凭证重试。
 - 套餐 profile 下 Preview 成功：只报告离线计划，不声称真实执行资格通过。真实执行遇到 `managed_agent_profile_required` 时停止，不重复发送。
 
+## Session 创建项目一致性
+
+- account-wide 查询返回 Agent 属于项目 A、最新 Environment 属于项目 B：不能直接创建；查询 A 的环境并显式绑定，先确定新 Session 的项目上下文。
+- 环境或其他项目级关联资源与 Session 项目不同，或归属未知：补查/确认，不因同账号可见、override 或 preview 成功而继续；不擅自改默认 profile。
+- Agent、Environment 和其他项目级关联资源均已确认属于目标项目：使用该项目 Platform profile 创建，回读 Session 项目和绑定。覆盖 `session create`、`+new session`、`+iterate`。
+
 ## 已有 Session 升级
 
 - “只预览这个老 Session 换模型”：使用 session upgrade --model ... --dry-run，零网络；不更新 Agent 资源、不重建 Session，不默认加 compact。
@@ -23,7 +46,7 @@
 - “改环境变量和依赖”：说明 env/packages 合并、空对象不清空；self_hosted 不发送 Sandbox 运行配置，不换 environment id。
 - “刷新 Vault”：只发送当前绑定集合，不创建凭证或更换绑定。initial_events 可省略，--compact 为显式选择。
 - “返回 upgrading，算成功了吗”：只报告受理，单独回读状态和目标模型/版本/配置，不查询虚构 task；超时先查后重试，升级中不发送消息。
-- “使用模型连接配置”：upgrade 支持 provider/protocol/base_url/headers，不套用创建 override 的过滤；预览不得泄露 Authorization/API Key，真实验证不把接入参数回显到报告。
+- BYOK：Agent create/update、Session override/upgrade 均保留显式模型接入字段；请求凭证只在 events send、compact、+new session 使用 `--model-header-env`，不写入静态 Headers。Preview 只读取引用。
 
 ## Self-hosted 运维
 
@@ -67,7 +90,7 @@
 - 根据新模型 metadata 选择 `Thinking`、`ReasoningEffort` 和 `ServiceTier`；不能沿用基模型的能力假设。
 - `ServiceTier` 只使用 `auto/default/fast`，不得生成 `priority`；目标模型不支持 `fast` 时不传。
 - 创建后回读 `Result.Agent.Model`，确认模型 ID 和运行参数；`auto` 被解析为实际 `default` 不算丢字段。再发送最小消息，确认切换后的模型可正常推理。
-- 最终请求中的 `Model` 只保留 `Id/Speed/Thinking/ReasoningEffort/ServiceTier`；`Provider/Protocol/BaseUrl/Headers` 及其他未定义字段被过滤，且不导致本地报错。
+- BYOK：Agent create/update、Session override/upgrade 均保留显式模型接入字段；请求凭证只在 events send、compact、+new session 使用 `--model-header-env`，不写入静态 Headers。Preview 只读取引用。
 - inline override、`@file` 和通用 `session create --file` 的 `AgentWithOverrides` 产生相同 canonical 请求；显式空 override 返回 validation error，不得 panic。
 - `+iterate` 修改运行时模型字段时回填当前 `Model.Id`；若同时使用 Session Agent override，版本位于 `AgentWithOverrides.Version`，顶层不再出现 `AgentId/AgentVersion`。仅修改 `--display-name` 也必须执行 UpdateAgent。
 
@@ -151,3 +174,19 @@
 - 正常 thread idle/end_turn 与 session idle/end_turn 同时出现即成功；compacted 事件存在时作为实际压缩确认，缺失时不得报错，也不得声称已确认折叠历史。
 - 失败/终止或超时返回非 0；不能只凭发送成功判定命令完成。
 - REPL `/compact <instructions>` 保留参数；`/clear` 行为不变。
+# Toolset / Dream 回归补充
+
+- 火山新建未传工具：普通 20260916 的八个工具，不附带多模态或提示词增强；显式 20260701 和 [] 保持原意。
+- 用户只改旧 Agent 名称、复制、Session override/upgrade：不升级 Tools；用户明确要求升级才在完整数组里只改普通工具集 Type/Name，保留权限、Models、custom/MCP。
+- Dream：先选模型与输入；create 仅一次，输出 ID 后 get/wait；不把 pending 当成功完成，不把 null Usage 当零费用。
+- wait failed/canceled/未知状态非零退出，超时不取消；cancel 需确认且保留输出。分页读取 NextPage，page-limit 不是单页大小。
+- create/cancel Preview 不发请求；Dream 仅火山，BytePlus 不推荐该命令。真实端到端未执行时不得以本地测试替代线上验收。
+
+## Dream 无历史上下文用例
+
+- 用户给出候选包版本并报告 404：记录实际 CLI 版本、加载的 Skill 来源和失败命令；不能用本机旧 Skill 推断用户也加载了旧版，不能将 unknown command 当作 HTTP 404。
+- 默认套餐 Profile，用户提供可用 API Key、未指定地址：允许显式 Key，使用 MA 标准地址；不要求切换全局默认 Profile，不复用套餐或 BYOK 上游地址。
+- 用户要求线上执行，但进程遗留 stg 或自定义 base URL：先核对环境与地址来源；不带着旧覆盖继续创建，也不擅自覆盖用户明确配置。
+- list 成功但 create 返回 404：区分控制面与数据面，保留错误码和 RequestId；不直接认定服务未发布，不循环试写或猜 raw API。
+- 已选 agent model list 返回的模型：Dream 直接使用模型 ID，不额外创建 Endpoint，不把 BYOK Model 对象传入 Dream。
+- create 超时无 ID，或 wait completed 但只读到输出文件列表：前者先核对已有任务、不重复创建；后者只报告完成与文件元数据，未读内容不得声称内容验证通过。

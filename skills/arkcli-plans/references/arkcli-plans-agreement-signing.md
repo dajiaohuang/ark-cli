@@ -59,7 +59,13 @@ Agent 引导原则（与 buy 闸门一致）：**禁止**在未告知用户的�
 
 ## 纯 API Key 调用
 
-显式 `--api-key` + Agent Plan/Coding Plan `--base-url` 会形成无控制面身份的 stateless 调用；已有个人版 Plan profile 在 SSO 失效后只剩 API Key 也属于同一类。CLI 无法仅凭数据面 API Key 查询账号的协议签署状态，因此真实执行会 fail-closed，返回 `plan_agreement_identity_required`。引导用户先登录并选择对应的个人版 Plan profile；不要通过改写 Base URL 或直接调用数据面来绕过。Platform 数据面的临时 API Key 调用不受此规则影响。
+`plan_agreement_identity_required` 的触发条件是**没有可用的控制面身份**，不是"有数据面 API Key"本身：
+
+- 显式 `--api-key` + Agent Plan/Coding Plan `--base-url` 形成无控制面身份的 stateless 调用 → fail-closed；
+- 个人版 Plan profile 完全只剩数据面 API Key（无 SSO id_token、无 AK/SK、无 identity-bound 火山控制面 STS）→ fail-closed；
+- 只要具备下列任一可用控制面身份，即使同时存在数据面 API Key，也必须放行到 `ListSubscribeTrade` / `GetAccountAgreement` 探测，**不得**返回本错误：SSO id_token、AK/SK、identity-bound 火山控制面 STS（`init-volc` / 云开发机 / broker，或 id_token 过期但 STS 仍可续的 SSO 登录）。
+
+判据与 `internal/apiclient/ark.go` 的控制面 transport 路由一致，不看 `AuthMethod()`：该字段优先级是 SSO > AK/SK > APIKey > Volc STS，因此 `arkcli auth status` 的 `auth_method` 会因数据面 API Key 存在而显示 `apikey`。判断是否真的"没有控制面身份"要看 `control_plane_auth.status`；`auth_method=apikey` + `control_plane_auth.status=ok` 是"有身份"，不是本错误。引导用户先登录并选择对应的个人版 Plan profile；不要通过改写 Base URL 或直接调用数据面来绕过。Platform 数据面的临时 API Key 调用不受此规则影响。
 
 ## 签署状态暂不可用 / 签署失败
 

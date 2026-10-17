@@ -1,6 +1,14 @@
 # Events 与 Chat
 
+`+new session --message`（或非 TTY stdin）在本轮执行失败时返回退出码 5、`agent_execution_failed`，包括断流后从列表补偿取得的失败终态；成功创建 Session 不代表模型执行成功。`+iterate` 复用同一对话等待逻辑。错误中的 Session ID 和发送 cursor 用于继续排查，不要自动重建 Session 或重发消息。
+
 ## Event / Chat 体验
+
+### 发送与执行的退出码
+
+不带等待参数时，退出码 0 只表示消息受理成功。`events send --stream` / `--wait` / `--poll`（含 SSE 超时后的轮询补偿）会检查本轮终态：执行失败、终止或非正常 stop_reason（如 `retries_exhausted`）返回退出码 5、`agent_execution_failed`。错误提示保留 Session ID、发送 cursor，并明确消息已受理，不要自动重发。原始错误事件仍保留在事件输出中。
+
+单次 tool_result/model_request 的 `is_error=true` 不直接判整轮失败，允许后续恢复；`requires_action` 仍表示待确认，不是失败，也不代表任务完成。只读 `events list/stream`、`+tail` 的退出语义不变。流式机器输出使用 `--format jsonl`，不要使用 `--format json`。
 
 先按用户是否需要看到 Agent 回复选择入口：
 

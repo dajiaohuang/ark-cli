@@ -30,8 +30,8 @@ arkcli profile set-default --modality text --skip-verify doubao-seed-2-0-pro-260
 | profile.Type | 校验来源 |
 |--------------|---------|
 | `platform` | `ListEndpoints` (PageAll) + modality filter — endpoint 自带 modality 必须跟 `--modality` 匹配, text endpoint 不能写到 image/video default. unknown modality (custom endpoint) 放行避免错杀 |
-| `agent-plan` / `agent-plan-team` | text: `ListAgentPlanLatestModel`<br>image: `AgentPlanImageModels`<br>video: `AgentPlanVideoModels`；个人/团队使用各自匹配的凭证，不混用 |
-| `coding-plan` / `coding-plan-team` | text: `ListArkCodeLatestModel`（需要当前 AccountID）<br>image/video: 借道 platform `ListEndpoints` + modality filter；团队席位 Key 不能据此当作视觉后付费 Key |
+| `agent-plan` / `agent-plan-team` | text: `ListAgentPlanVirtualModelID`（携带对应 `Edition` + `BizInfo=PlanTier`）<br>image: `AgentPlanImageModels`<br>video: `AgentPlanVideoModels`；个人/团队使用各自匹配的凭证，不混用 |
+| `coding-plan` / `coding-plan-team` | text: `ListCodingPlanVirtualModelID`（携带对应 `Edition` + `BizInfo=PlanTier`）<br>image/video: 借道 platform `ListEndpoints` + modality filter；团队席位 Key 不能据此当作视觉后付费 Key |
 
 **校验用 target profile 的身份**（codex P0-A 修正）：`--profile X` 时通过 `rt.RebuildFactoryForProfile(X)` 重建 invoker，避免 active=A 的 ListEndpoints 结果被当成 B 的可选范围。
 

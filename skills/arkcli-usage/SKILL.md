@@ -1,7 +1,7 @@
 ---
 name: arkcli-usage
 version: 1.3.5
-description: "ARK 用量查询:`usage stats`(Token / 请求数,5-30 分钟延迟)、`usage plan` / `usage balance --type plan`(套餐额度快照)、`usage plan-details`(仅 Agent Plan 按模型时间序列,套餐内/外拆分)、`usage balance`(余额:免费额度 / 媒资库 / 套餐)、`usage seats --with-usage`(团队席位用量 by seat)。Coding Plan 只有 quota 快照，不能用 stats 冒充按模型套餐明细。命中关键词:用量 / 用了多少 / 还剩多少额度 / 套餐用了几成 / 套餐内套餐外 / 每个 seat 消耗。**席位的列表 / 绑定 / 分配 / 轮换 APIKey 属管理范畴,走 arkcli-plans;本 skill 只回答用量。**动词路由:**用 / 消耗 / 多少** → 这里;**列 / 绑 / 分 / 轮换** → arkcli-plans。反触发：TTS/ASR/语音模型用量不支持查询，只能转 models search 说明广场发现边界。"
+description: "查询平台 Token/请求数、套餐额度快照、Agent Plan 按模型明细和团队席位用量。已发生调用的人民币金额、实际花费、用量折算费用优先转 arkcli-billing；目录询价转 pricing，明确要求按单价估算时才组合 usage 与 pricing。Coding Plan 只有额度快照，不提供按模型明细。席位列表/分配/轮换 Key 转 arkcli-plans；TTS/ASR 用量不支持查询。"
 metadata:
   requires:
     bins: ["arkcli"]
@@ -32,7 +32,13 @@ metadata:
 >
 > 用户问「我的套餐还剩多少额度」→ `plan` 或 `balance --type plan`(后者输出更精简);「我哪个模型用得最多」→ Agent Plan 用 `plan-details`，Coding Plan 只能用 `plan` 给 quota 快照并说明不支持按模型拆分;「我今天用了多少 token」→ `stats`;「我还剩多少免费额度 / 媒资库容量」→ `balance`;「**每个 seat 用了多少 / 团队席位用量分布**」→ `seats --with-usage`(纯管理类:谁绑了哪个 seat / 列出席位 / 分配席位 / 轮换 key → `arkcli-plans`)。
 
-## Step 0：先选用量口径，再确认身份
+## Step 0：先分金额、数量与额度，再确认身份
+
+先看用户要交付的单位；句子中出现“用量”不决定查询入口：
+
+- **已发生用量折算人民币 / 实际花费 / 应付账单**：先读取 [`arkcli-billing`](../arkcli-billing/SKILL.md)，按其日期、个人归属和 T+1 规则查实际应付。此分支在任何 `usage stats` 或价格查询之前执行。用户同时要调用量时再另查 Usage，分别交付。
+- **模型 / 套餐目录多少钱、每 Token 单价**：读取 Pricing 做询价，不查个人账单或用量。
+- **明确要求目录单价估算 / 预算预测**：才读取 Pricing，与用户指定范围的调用量组合；结果标“估算”，披露免费额度、折扣、缓存及结算差异。已有实际费用问题遇到 T+1 未出账时，报告未结算部分，不自动改成估算金额。
 
 用户已明确套餐名称时，直接用 `usage plan --product <plan>`；Agent Plan 按模型明细用 `usage plan-details --product <agent-plan|agent-plan-team> --start <日期>`。订阅属于账号/子用户，**不是由 active profile.type 决定**；platform profile 不等于没有套餐，也不需要为查询先切成 plan profile。
 
@@ -45,11 +51,26 @@ metadata:
 
 **时间与交付：** `stats` / `plan-details` 必带 `--start`，没有 CLI 默认“近 7 天”；按用户时间词补齐 `--start/--end`，无日期时说明按今天查。长窗口按当前 reference 的限制分片，边界不重叠，保留用户原请求范围；无法覆盖的日期明确标注，不静默改成最近 30 天。回答同时标明口径、身份/范围、时间窗和数据延迟。
 
+### 数值与范围交付
+
+- `usage stats` 输出的顶层 `totals` 汇总本次所有返回记录；点名模型/品牌时按实际模型身份筛选并重新计算，不能把混合模型合计全归给目标模型。“我想查询”只是请求主语，不自动收窄为本人创建的资源；“我的用量/我创建的 Endpoint”才采用本人归属，且不改当前身份和 Project。
+- 套餐逐项以 `items[].product/edition/tier/seat_id` 标识身份，以同一项 `periods[].label/used/total/percent/reset_at` 生成正文和卡片；提交前比对二者数值、单位和周期。团队版和个人版不能因为档位名相同就复用额度；静态价格/套餐目录不能覆盖实时 `total`。
+- 排查套餐限额或交付额度快照时，按“套餐/版本/席位 → 周期 → 已用/总额/余量（原单位） → 已用百分比 → 重置时间（含时区）”逐项交付本轮返回值；卡片无法完整承载时用 Markdown 保留这些字段。只有同周期、同单位的真实 `used/total` 才计算余量；缺字段写未返回。不能只给百分比表而省略已有的绝对余量与重置时刻，也不能只摘一个健康窗口就宣称全部配额健康。
+- Coding Plan 仅有百分比、缺少 `used/total` 时只展示已有百分比与重置时间，不推算绝对额度、次数或 Token。缺字段、失败项和零消耗分开，不从另一个 SKU 填数。历史限额报错与当前快照分开标明，不能把当前未耗尽反推为历史报错不可能发生。
+
+### 限额报错：历史事实、当前快照与恢复条件
+
+用户贴出 `AccountQuotaExceeded` 或带重置时刻的套餐限额报错时，先保留原错误码、时间和已知套餐；需要错误目录解释时可转 [`arkcli-doctor`](../arkcli-doctor/SKILL.md)，近似错误码不能冒充原码。用 `usage plan` 查当前快照，按上方字段交付；查询失败或某桶失败时保留未知。
+
+- 原重置时刻已过去，只能说明那次窗口已经过去；当前快照未耗尽，只能证明本轮所查身份和套餐的额度状态。仍有新报错时需要它的时间、错误码、套餐/调用上下文；没有客户端日志，不把“自动重试旧请求”“客户端缓存”当成已知原因，也不由额度正常保证调用必然成功。
+- 恢复建议按实际 `product/edition` 区分。等待时引用对应窗口真实 `reset_at`；升配时转 [`arkcli-plans`](../arkcli-plans/SKILL.md) 并按该套餐文档说明生效条件，不把 Coding Plan 的时效规则推广到 Agent Plan。Agent Plan 文档中的“超额后付费”是有资格、服务开通和计费条件的恢复选项，不能笼统说所有套餐“只能等待”；Coding Plan 不自动继承该选项。
+- `usage plan` 的额度字段和 `plans get` 的订阅状态都不包含超额后付费开关，不能由这些返回值宣称已开启或已关闭。说明该选项会产生额外费用、需用户自行决定；本轮排障不启用开关、不升配、不切换收费路径，也不发送推理请求试探额度是否恢复。当前未超限时无需执行恢复操作。
+
 ### 空结果与归属排查
 
 1. 区分命令失败、成功但空、存在 records 但合计为零；三者不能互相代替。
 2. 核对日期/时区、聚合延迟、所选口径、身份以及实际生效的 Project/过滤条件。近期记录未进入聚合不代表调用未发生；账号全范围不等于有所有资源权限，也不能先断言是 Project 隔离。
-3. Volc 个人平台统计仅在成功为空，或 CLI 明确报告本人没有 Endpoint 时，保留原日期/过滤条件改查 `--mine --mine-by=apikey`；已显式选 API Key 维度就不重复。鉴权、权限、网络错误不是空结果。两次均空也不自动删 `--mine`；扩大账号范围须用户另行明确要求。
+3. Volc 个人平台统计仅在成功为空，或 CLI 明确报告本人没有 Endpoint 时，保留原日期/过滤条件改查 `--mine --mine-by=apikey`；已显式选 API Key 维度就不重复。鉴权、权限、网络错误不是空结果。CLI 提示 `omit --mine` 只列出另一种命令范围，不代表用户同意扩大查询。第二层为空或资源筛选失败时停在本人范围，分别报告空结果或未能取得结果；仅在用户另行明确要求后查询账号全量。无法获得新回复时保留范围和未知项，不用他人用量补齐。
 4. 平台 `records` 的 `ModelEndpoint` 可交给 `infer endpoint get <id>`；`AuthToken` 是 Key 掩码标识，可用 `apikey.list` 的元数据核对归属，后缀有冲突时报告歧义，不取明文、不轮换 Key。
 5. Agent Plan `plan-details` 不提供 Endpoint / API Key 级归属，查到模型/Harness 消耗即到边界；Coding Plan 无模型/Harness 明细。不能跨口径拼出不存在的调用归属，也不因 CLI 报错改用记忆/检索结果充当账号数据。
 
@@ -103,7 +124,7 @@ metadata:
 
 ## Agent 快速执行顺序
 
-1. 先确认认证状态;不确定时先看 `arkcli auth status`
+1. 先按 Step 0 选定金额、数量或额度入口；需要核对缺失的身份摘要时遵循共享协议。
 2. 先做最小查询,再逐步加时间范围和分组条件
 3. 结果异常时,先检查 profile / region / API Key 来源是否正确,再怀疑数据本身
 4. 如果用户要按 endpoint 看 usage,最好先确认 endpoint-id 已知

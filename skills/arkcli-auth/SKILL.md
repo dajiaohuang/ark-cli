@@ -13,6 +13,7 @@ metadata:
 **CRITICAL — 开始前 MUST 先用 Read 工具读取 [`../arkcli-shared/SKILL.md`](../arkcli-shared/SKILL.md)，其中包含认证闸门、配置排查与共享安全规则**
 **CRITICAL — 用户目标是其他业务命令时，必须先判断是不是被认证阻塞，再决定是否进入本 skill。**
 **CRITICAL — `auth` 是身份/TTY 工作流，全域不注册 `--dry-run`；不要生成该 flag。**
+**CRITICAL — Key 列表、当前 Profile 选中 Key、最近有调用的 Key 是三个不同事实。声称“最近使用”前，须完整分页并按真实 `LastAccessTime` 解析时区后取最大值；列表第一条、名称中的日期、`CreateTime` 或 `Active` 状态都不能代替最近调用证据。查询/聚合与披露边界见 [API Key 查询与交付](references/api-key-query.md)。**
 
 **⚠️ 0.1.16 变化总览（必读）**：
 1. SSO 登录引入 **Gate 1+2**：浏览器流后比对 SSO trn 与 `is_default profile.OwnerTrn`，4-case 分别走 `BuildFirstProfile` (新建) / `GUIDE_SKIP` (复用) / 提示切 default / 提示新建。详见 `docs/runtime/volc-sso.md`。
@@ -74,8 +75,8 @@ metadata:
 - TTY 首登发现普通池为空时会先询问是否创建；确认后只调用一次 `CreateApiKey`，再最多读 3 次状态。Agent Plan 专属记录存在但非 Active 时会询问是否轮转；确认后也只轮转一次、最多读 3 次状态。非 TTY、用户拒绝或无专属记录时绝不写。
 - TTY 首登中，如果用户选择的 profile 类型在 API Key 获取阶段报错（例如 Agent Plan 轮转后检查 3 次仍为 `Restricted`），CLI 会保留已选 region/project、从本轮候选中移除该失败类型，并重新让用户选择其他消费场景。失败类型不会再次 silent backfill，避免重复获取或二次轮转；这属于 profile 级重选，绝不会拿普通/Coding Plan Key 冒充 Agent Plan 专属 Key。
 - **v3 ve handoff 分支** (1.0.4 起, 仅火山 SSO 交互式登录): 检测到本机装有 `volcengine-cli >= 1.0.45` 且已 `ve login` 时, `arkcli auth login` 会先尝试借用其登录态直接落 arkcli identity (省一次浏览器授权)。落盘差异见 [`references/arkcli-auth-login.md`](references/arkcli-auth-login.md): 不落 `token.json` (IDToken/refresh_token/ClientID 由 ve SDK 管), 但落 `sts.json` + `metadata.json.source="ve"`; `auth whoami` 显示 `auth_method="sts"` 而非 `"sso"`, 是合法登录态。检测失败 / ve 未登录 → 自动降级 arkcli 原生 SSO OAuth。
-- `arkcli auth apikey` 只列举并选择**普通 API Key 池**，写入 identity/.env 兼容凭证；它不读取或修复 Agent Plan 专属 Key、也不读取团队席位 Key。当前是 Plan profile 时优先使用 `profile keys refresh` 或对应 Plan 的轮转/席位流程，不能把 `auth apikey` 的 `saved=true` 解读为 Plan Key 已恢复。它也不能让广场语音模型获得 `+chat` / `+gen` / `+deploy` / `+code-example` / `usage` / `pricing` 能力。
-- `arkcli auth apikey create` 创建、验证并保存一把**普通 API Key**到当前 identity/.env 兼容凭证；TTY 必须确认，非交互环境收到 `requires_confirmation` 后必须走共享 Skill 的宿主确认流程；只发一次 `CreateApiKey`，随后最多做 3 次只读状态检查，成功输出不包含明文 Key。它同样不能创建或修复 Agent Plan 专属 Key、团队席位 Key；已有 Profile 要切换默认 Key 时仍用 `profile keys refresh/use`。
+- `arkcli auth apikey` 只列举并选择**普通 API Key 池**，写入 identity/.env 兼容凭证；它不读取或修复 Agent Plan 专属 Key、也不读取团队席位 Key。当前是 Plan profile 时优先使用 `profile apikey refresh` 或对应 Plan 的轮转/席位流程，不能把 `auth apikey` 的 `saved=true` 解读为 Plan Key 已恢复。它也不能让广场语音模型获得 `+chat` / `+gen` / `+deploy` / `+code-example` / `usage` / `pricing` 能力。
+- `arkcli auth apikey create` 创建、验证并保存一把**普通 API Key**到当前 identity/.env 兼容凭证；TTY 必须确认，非交互环境收到 `requires_confirmation` 后必须走共享 Skill 的宿主确认流程；只发一次 `CreateApiKey`，随后最多做 3 次只读状态检查，成功输出不包含明文 Key。它同样不能创建或修复 Agent Plan 专属 Key、团队席位 Key；已有 Profile 要切换默认 Key 时仍用 `profile apikey refresh/use`。
 - 语音模型能力边界回答只说明 arkcli 不支持；不要主动给"先控制台开通再 API Key/SDK 调用"这类替代流程，除非用户另问官方接入文档。
 - **只查不切的 list API Key**(只想看 account 下有哪些 key,不想切换当前 key): 跑 `arkcli api apikey.list --params '{"PageSize":100}' --page-all --format json`,**不要**跑 `auth apikey` — 后者是交互式选择并写入凭证存储,会改变当前生效 key
 - **当前已选 key 的元信息**(name / suffix / project / 状态): 看 `auth status` 输出里的 `ark_api_key` 字段,不需要再调远端
@@ -94,10 +95,10 @@ metadata:
 | "我是谁/我的身份/当前用户/哪个账号/我自己的 IAM 用户 ID" | `arkcli auth whoami` |
 | "查同事 zhangsan 的 IAM 用户 ID/查别人的 IAM 用户 ID" | **转 `arkcli-profile`**（查看当前 profile 并列出可用 API Key）+ 提示用户使用 `arkcli iam` 命令（如有） |
 | "API Key 泄露/废弃旧 Key/换新 Key/rotate/轮换 API Key" | **转 `arkcli-plans`**：`plans personal rotate-apikey` 或 `plans team rotate-apikey` |
-| "命令突然报 key 失效/401/InvalidApiKey 但我没换过 key"（疑似后端轮换） | **转 `arkcli-profile`**：先 `arkcli profile keys refresh` 同步后端 key 再重试（**遇失败才触发的反应式自愈，非预防性**）；refresh 救不了再看 [`references/auth-modes.md`](references/auth-modes.md) |
+| "命令突然报 key 失效/401/InvalidApiKey 但我没换过 key"（疑似后端轮换） | **转 `arkcli-profile`**：先 `arkcli profile apikey refresh` 同步后端 key 再重试（**遇失败才触发的反应式自愈，非预防性**）；refresh 救不了再看 [`references/auth-modes.md`](references/auth-modes.md) |
 | "看账号有哪些 Key/Key 列表/只查不切" | `arkcli api apikey.list`，按上述 reference 分页查看元数据，不改变当前 Key |
-| "看当前 Profile 的 Key 库存" | **转 `arkcli-profile`**：说明同步影响后用 `profile keys list` |
-| "切换默认 Key/用另一个 Key" | **转 `arkcli-profile`**：`arkcli profile keys use <key>` |
+| "看当前 Profile 的 Key 库存" | **转 `arkcli-profile`**：说明同步影响后用 `profile apikey list` |
+| "切换默认 Key/用另一个 Key" | **转 `arkcli-profile`**：`arkcli profile apikey use <key>` |
 | "创建一把普通 API Key" | `arkcli auth apikey create`；非交互环境按 `requires_confirmation` 走宿主确认流程 |
 | "AK/SK 登录/access key/secret key" | **告知通道暂关**：当前版本 AK/SK 登录通道暂时关闭，请使用 SSO 登录，运行 `arkcli auth login`
 

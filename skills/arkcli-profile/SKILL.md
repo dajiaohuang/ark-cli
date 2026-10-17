@@ -67,7 +67,7 @@ metadata:
          > 第一个 type=platform 的 profile > "default" sentinel
 ```
 
-**关键修正（codex P0-A）**：在 `resources list / profile keys refresh / profile set-default / profile models refresh` 这些命令上，`--profile` 不再只是改 target 对象名，而是真的切换执行身份 —— 内部用 `Factory.RebuildForProfile(name)` 重建 invoker，所以 `arkcli profile keys refresh --profile B` 会用 B 的 token / UserID 打控制面，而不是 active=A 的身份打完再写到 B。
+**关键修正（codex P0-A）**：在 `resources list / profile apikey refresh / profile set-default / profile models refresh` 这些命令上，`--profile` 不再只是改 target 对象名，而是真的切换执行身份 —— 内部用 `Factory.RebuildForProfile(name)` 重建 invoker，所以 `arkcli profile apikey refresh --profile B` 会用 B 的 token / UserID 打控制面，而不是 active=A 的身份打完再写到 B。
 
 Agent 行为约定：
 - 用户跑 `--profile B` 之类的子命令时，**不要假设它跟 active profile 等价**；告诉用户"将以 B 的身份操作"
@@ -81,8 +81,8 @@ Agent 行为约定：
 4. 用户要新建 profile：先按下面决策树确认五类 type，读 [create reference](references/arkcli-profile-create.md) 后执行；只有用户明确要求同时切默认时才带 `--set-default`
 5. 用户问 default 模型是什么 → plan 类用 `arkcli profile models list`，platform 用 `arkcli profile show` 看 `resources` 字段
 6. 用户要换 default 资源 → 按上面的硬状态机取真实候选、消歧、`profile set-default`，再只读核验
-7. 用户的 default API Key 报错 / key 列表过期 → `arkcli profile keys refresh`，然后 `arkcli profile keys list --format json` 看新清单。refresh 按 profile 类型取对应池：普通池、Agent Plan 个人版专属池或团队席位 Key；空结果会报错并保留本地 Key，不会成功清空。
-8. 用户要选别的 key 作 default → `arkcli profile keys use <api-key>`（必须 ∈ `profile.available_api_keys`）
+7. 用户的 default API Key 报错 / key 列表过期 → `arkcli profile apikey refresh`，然后 `arkcli profile apikey list --format json` 看新清单。refresh 按 profile 类型取对应池：普通池、Agent Plan 个人版专属池或团队席位 Key；空结果会报错并保留本地 Key，不会成功清空。
+8. 用户要选别的 key 作 default → `arkcli profile apikey use <api-key>`（必须 ∈ `profile.available_api_keys`）
 9. 用户要换 active project（不重登）→ `arkcli profile project`（无参拉真实 ListProjects 交互选；先复述「会把 platform profile 重命名/重派生到新 project，个人版 plan profile 保留」并确认）
 
 ## Token 额度包 / 资源包的 profile 归属
@@ -105,11 +105,11 @@ Agent 行为约定：
 | `arkcli profile delete <name>` | 删除 profile（必须 `--yes` 才能跳确认） | 替代 `config delete` |
 | `arkcli profile rename <old> --to <new>` | 重命名 profile（校验格式 + 唯一性） | 0.1.16 新增 |
 | `arkcli profile project [<name>]` | 重选 active project（无参拉真实 ListProjects 交互选，列表置顶「账号全部资源」=不传 ProjectName/account-wide）；把 platform profile 重派生到新 project，个人版 plan profile 原样保留；不重登 | 0.1.17 新增 |
-| `arkcli profile keys list` | 列 default + available API Keys（masked） | 0.1.16 新增 |
-| `arkcli profile keys use <key>` | 切 default API Key（key 必须 ∈ available list） | 0.1.16 新增 |
-| `arkcli profile keys refresh` | 按 profile 类型重拉普通池 / Agent Plan 专属池 / 团队席位 Key，非空时更新 available list | 0.1.16 新增 |
+| `arkcli profile apikey list` | 列 default + available API Keys（masked） | 0.1.16 新增 |
+| `arkcli profile apikey use <key>` | 切 default API Key（key 必须 ∈ available list） | 0.1.16 新增 |
+| `arkcli profile apikey refresh` | 按 profile 类型重拉普通池 / Agent Plan 专属池 / 团队席位 Key，非空时更新 available list | 0.1.16 新增 |
 | `arkcli profile models list` | plan 类 profile 的 PlanTier + Resources defaults | 0.1.16 新增 |
-| `arkcli profile models refresh` | 按目标 Plan 类型重拉文本模型并更新 Text.Default；会写配置 | 0.1.16 新增 |
+| `arkcli profile models refresh` | 按目标 Plan 类型及 profile 的 Edition + PlanTier 重拉 VirtualModelID 直接模型清单，更新 Text.Default；会写配置 | 0.1.16 新增 |
 | `arkcli profile set-default --modality <m> <id>` | 设某 modality 的 default 资源 ID | 0.1.16 新增 |
 
 ## ProfileType 选型速查

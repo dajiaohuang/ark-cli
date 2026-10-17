@@ -1,6 +1,17 @@
 # Session 与 Files
 
+`session resources list/get/add` 是数据面命令，支持显式 `--api-key` / `--base-url`。显式地址必须同时提供显式 Key，且地址应为 MA 数据面地址，不是 BYOK 模型的 BaseUrl；只提供 Key 时使用当前产品、Region、环境的 MA 标准地址，不继承套餐路由。这不改变 `session create/get` 等控制面命令的认证要求。
+
 ## Env / Session
+
+### Session 项目一致性
+
+创建 Session（包括 `session create`、`+new session`、`+iterate`）时，所选 Agent、Environment 及其他带项目归属的关联资源必须与 Session 处于同一 Project；override 不豁免该要求。
+
+- 先通过 `auth status` 确认所选 Platform profile 的项目上下文，再用资源的 list/get 返回值核对实际 `ProjectName`。`account-wide` / “账号全部资源”只是查询范围，不是具体 Project，也不证明列出的资源属于同一项目。
+- 若 Session 的目标 Project 尚未确定、资源归属缺失或存在冲突，先补查或向用户确认，不按名称、同账号、可见性或创建时间推断。对没有项目归属的资源，不虚构 `ProjectName`。
+- 选择环境时先筛选同 Project 的候选，再按用户需求选择，并显式传 `--environment-id`（或入口支持的 `--env-id`）；不能依赖账号范围内“最新环境”的自动选择。没有同项目候选时，确认后在目标项目创建，不借用其他项目资源。
+- 使用已确认的项目级 Platform profile 完成创建；没有对应 profile 时按 Profile skill 处理，不擅自修改全局默认，不伪造全局 `--project-name`。创建后用 `session get` 回读项目与资源绑定；预览成功不能代替项目归属核对。
 
 ```bash
 arkcli agent env create --name arkcli-<domain>-env-<timestamp> --config '{Type: cloud, Networking: {Type: unrestricted}}' --format json
@@ -73,9 +84,9 @@ arkcli agent session create \
 
 `--agent-overrides` 映射为 `AgentWithOverrides`，`--environment-overrides` 映射为 `Environment`，缺少 override 对象中的 `Id` 时 CLI 会从 `--agent-id` / `--environment-id` 补齐。override 是服务端 one-of 变体，CLI 会在最终请求中移除对应的 `AgentId` / `AgentVersion` 或 `EnvironmentId`，避免同时传两个互斥变体。`arkcli +new session` 和 `arkcli +iterate` 也支持同名参数。需要传自定义 Agent 配置时不要同时使用 `--agent` 和 `--agent-overrides`。
 
-`AgentWithOverrides.Model` 只支持 `Id`、`Speed`、`Thinking`、`ReasoningEffort`、`ServiceTier`。`Id` 可以为当前 Session 切换模型；CLI 会从最终请求中剔除 `Provider`、`Protocol`、`BaseUrl`、`Headers` 及其他未定义的 Model 字段，不会因为这些字段在输入中出现而本地报错，也不要依赖被剔除字段生效。模型参数必须以**切换后的模型** metadata 为准：`Thinking`、`ReasoningEffort` 与 `ServiceTier` 的支持值会随模型变化。Managed Agent 的 `ServiceTier` 产品枚举为 `auto`、`default`、`fast`，没有 `priority`；不要猜测或把其他业务中的 priority 概念映射到这里。`auto` 在服务端回读时可能被解析为实际生效的 `default`，这不等同于字段丢失。拿不到目标模型 metadata 时，省略不确定的运行参数并让服务端使用模型默认值。
+`AgentWithOverrides.Model` 支持 `Id/Provider/Protocol/BaseUrl/Headers/TokenLimits/InputModalities` 及 `Speed/Thinking/ReasoningEffort/ServiceTier`；不再过滤用户显式提供的模型接入字段。类型、省略语义和请求凭证见 [BYOK](byok.md)。按目标模型能力选择参数，不猜默认值，也不把配置保存成功当成推理成功。
 
-上述归一化和 Model 字段过滤同时适用于 `--agent-overrides`、`--agent-overrides @file` 以及通用 `session create --file` 内的 `AgentWithOverrides`。显式空值 `--agent-overrides=` / `--environment-overrides=` 是无效输入，CLI 返回 validation error，不创建 Session。
+上述模型结构归一化同时适用于 `--agent-overrides`、`--agent-overrides @file` 以及通用 `session create --file` 内的 `AgentWithOverrides`。显式空值 `--agent-overrides=` / `--environment-overrides=` 是无效输入，CLI 返回 validation error，不创建 Session。
 
 ### Environment 状态筛选
 
@@ -98,6 +109,12 @@ arkcli agent env list --page-all --format json
 - env `--page-all` 默认使用 `Limit=100`，并把每页响应的 `NextPage` 作为下一次请求的 `Page`；`--page-limit` 限制的是最多请求页数，不是结果条数。
 
 ## Files 与 Session Resources
+
+### 查看挂载资源
+
+先 `agent session get <session-id>` 核对 Session，再 `agent session resources list <session-id>` 查看接口实际返回的挂载项。需要单项时用 `resources get <session-id>` 按该命令 help 中的资源 ID/file ID/mount path 筛选；文件 metadata 用 `agent file get <file-id>`。列出的挂载项不等于完整 Sandbox 目录树，file get 也不等于下载内容。没有公开读取接口时直接说明边界，不生成 `fs tree`、任意 Sandbox path 读取或内部接口命令。
+
+Memory 挂载须使用返回的 store ID，再查询 `agent memory-store get` / `memories list` / `memories get --view full`。条目默认 basic 视图不包含正文；Path 更新后以响应中的 ID 和 Path 为准，不假设旧 ID 仍可用。不连接 OV 内部存储，也不据此绕过账号或资源权限。
 
 - 本地文件上传到 Files API：`arkcli agent file upload --path ./data.csv --purpose user_data --wait-active`。
 - URL/TOS 注册：`arkcli agent file upload --url https://... --purpose user_data` 或 `--url tos://bucket/path/file --tos '{bucket: b, prefix: arkfiles/}'`。
@@ -135,3 +152,6 @@ arkcli agent session resources add <session-id> --path ./data.csv --mount-path d
 arkcli agent file upload --path ./sales.csv --purpose user_data --wait-active --format json
 arkcli agent session resources add sess-xxx --path ./sales.csv --mount-path sales.csv --format json
 ```
+## 工具版本
+
+Session 的 AgentWithOverrides.Tools 是完整数组；不提供就沿用绑定 Agent 的配置，不自动升级旧工具集。显式选择 20260916 或提示词增强工具前，读取 [工具配置](agent.md#默认-agent-工具)，保留完整的其他工具、权限与 Models。

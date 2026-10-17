@@ -2,6 +2,13 @@
 
 目标：验证本 skill 在“该唤起/不该唤起/排错”三个维度上行为稳定。
 
+## 原始计费项契约（遗漏 #71）
+
+- 用户明确要求核对 `GetModelChargeItem` 的原始计费项/开通状态时，确认已注册的
+  `model.get_model_charge_item` 与 `FoundationModelName`，使用真实基础模型 Name 做只读调用。
+- 保留原始返回结构；字段缺失或接口失败标未知，不用 pricing 的投影字段冒充原始计费项。
+- 用户只是询问模型价格时，继续走 pricing/models；原始查询不自动开通模型或购买套餐。
+
 ## 1) 该唤起（Trigger）
 
 输入（用户说法）：

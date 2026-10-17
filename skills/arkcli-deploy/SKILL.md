@@ -1,7 +1,7 @@
 ---
 name: arkcli-deploy
 version: 1.4.9
-description: "arkcli +deploy：普通创建推理接入点（Endpoint）的统一首选入口。用户说『创建/新建/create 一个 endpoint/接入点』或『部署/上线/deploy 某模型』时优先走这里；**但脚本化 / CI / 无护栏 / 原始 raw CRUD 创建是唯一例外，必须改走 `arkcli-infer-endpoint`，不能由本 skill 截获**。只有不命中该例外的普通创建，才在模型尚未选择、只给品牌/家族名，或当前轮只查询候选时进入本 skill 完成模型澄清；候选要用实时 search 返回的 `name` 与 `primary_version` 组合成可直接传给 `--model` 的完整 ID。对**已有** Endpoint 做获取/列表/启停/更新等全生命周期管理也走 arkcli-infer-endpoint；本 skill 只负责带产品护栏的一键创建。创建成功后会自动把多语言调用示例渲染到 ./ark-examples/<ep-id>/。反触发：TTS/ASR/语音模型不能 +deploy，只能转 models search 说明广场可搜但 arkcli 不支持 Endpoint 创建。"
+description: "arkcli +deploy：明确指定型号创建接入点也由本 Skill 接管，包括 Retiring 型号；推荐过滤不替代指定目标的实际创建结果。普通创建推理接入点（Endpoint）的统一首选入口。用户说『创建/新建/create 一个 endpoint/接入点』或『部署/上线/deploy 某模型』时优先走这里；**但脚本化 / CI / 无护栏 / 原始 raw CRUD 创建是唯一例外，必须改走 `arkcli-infer-endpoint`，不能由本 skill 截获**。只有不命中该例外的普通创建，才在模型尚未选择、只给品牌/家族名，或当前轮只查询候选时进入本 skill 完成模型澄清；候选要用实时 search 返回的 `name` 与 `primary_version` 组合成可直接传给 `--model` 的完整 ID。对**已有** Endpoint 做获取/列表/启停/更新等全生命周期管理也走 arkcli-infer-endpoint；本 skill 只负责带产品护栏的一键创建。创建成功后会自动把多语言调用示例渲染到 ./ark-examples/<ep-id>/。反触发：TTS/ASR/语音模型不能 +deploy，只能转 models search 说明广场可搜但 arkcli 不支持 Endpoint 创建。"
 metadata:
   requires:
     bins: ["arkcli"]
@@ -20,20 +20,37 @@ metadata:
 
 候选必须来自**本轮** ArkCLI 的实时结构化输出，禁止从模型记忆、示例或旧版本号补全。
 
-**查询预算是当前用户回合恰好一次 Bash 调用。** 在执行前一次性确定 keyword、过滤条件和 `--size`。`models search` 的 keyword 是单个 catalog 子串，不要把多个概念拼成带空格的短语：先选最能缩小范围的一个 ASCII token，其余条件放到同一次调用的 flags 或 `jq` 本地过滤。例如“豆包代码模型”用 keyword `code`，再在同一管道按 `name` 的 `doubao|seed` 过滤；“生图”用 `seedream`。不确定稳定 token 时宁可省略 keyword 并使用已有结构化 filter，禁止把未翻译的中文短语直接提交后再换词重试。若担心输出过长，把字段投影直接放进同一条管道，例如
-`arkcli models search "<keyword>" --size 0 --format json | jq -c '{items: [(.items // [])[] | {name, primary_version, lifecycle_status, input_modalities, output_modalities}]}'`。
-这次调用无论成功、空结果、截断还是失败，都不得换关键词、调大分页、重跑同一命令或为了重新格式化再调用一次 ArkCLI；只能使用已捕获的 stdout，信息不足就如实停止。
+### 用户明确指定模型时保留创建目标
 
-1. **完全没给模型**：执行一次有界查询，例如 `arkcli models search --size 10 --format json`。若用户已说明用途或模态，把对应的 keyword / `--modality` 加进同一次查询。
-2. **只给品牌、系列或家族名**（例如 “Doubao”“Seed 2”）：执行一次 `arkcli models search <keyword> --size 10 --format json`；家族名不是可直接传给 `--model` 的完整 ID。
-3. 从同一次返回的 `items` 中读取 `name`、`primary_version`、`lifecycle_status` 和模态等已有字段。优先保留 `lifecycle_status=Published` 且名称不含 `internal` / `test` 的候选；状态缺失或非 Published 时只能如实标为未核实，不能称为“可部署”。完整模型 ID 按模型查询契约确定：`primary_version` 非空时使用返回值精确拼成 `<name>-<primary_version>`，为空时才使用 `<name>`；这是结构化字段组合，不是从名称或日期规律猜版本。不要自行给 `name` 拼 `pro`、`lite` 或任何未返回的版本后缀。
-4. **0 个可用候选**：说明本轮没有查到，并请用户补充用途、模态或关键词；不要猜一个继续。
-5. **1 个可用候选**：复述本轮返回的完整 ID，请用户确认；若用户已要求本轮只查询，则停在这里。
-6. **多个可用候选**：列出精简候选及完整 ID，请用户明确选择；若候选仍过多，按用户用途缩小范围，不能擅自选第一项。
+本 Skill 同样接管“为某个明确型号创建接入点”，包括目录显示 Retiring 的型号。先用已有完整结果确认本次型号与版本；唯一对应用户指定目标时，进入该目标的创建流程，不把它当成未定模型推荐再按 Published 过滤。Retiring 提示生命周期风险，不能单独证明服务端必定拒绝创建；也不能保证创建成功。名称不完整或仍有多个版本时，按真实候选消歧，禁止猜版本。
 
-澄清阶段的收敛边界：本回合第一次 `search` 返回后，**禁止再次执行 `models search`，也不要对候选循环执行 `models get`、价格查询或其他详情调用**。只有用户选定单个候选后又明确要求比较某个缺失属性，才在后续回合追加一次针对性查询。模型尚未唯一确定前，禁止执行 `+deploy`、`infer endpoint create` 或 Raw API 创建。
+新接入推荐候选仍优先 Published。具体创建继续经过既有授权、开通/计费与实名门禁，由真实服务端响应决定结果；收到明确不可用、资格或权限拒绝就保留原错误，不能静默替换为另一个模型。不要给不支持 Preview 的 `+deploy` 拼 `--dry-run`，也不要为补“验证”绕过产品流程发 Raw API 写请求。
 
-Endpoint 名称不应阻塞上述只读候选查询；模型选定后，再收集名称并确认最终创建参数。
+### 模型尚未确定时查询候选
+
+先确定用户硬条件与关键词，初次用 `models search "<keyword>" --size 10 --format json`；无关键词就省略。关键词用真实名称/家族的子串，能力和模态用真实 flags，不把多个自然语言概念拼成模型名。已有完整本轮结果就复用。
+
+1. **完全没给模型**：按用途/输出模态查询；没有用途时展示实时代表供选择，不从记忆列型号。
+2. **只有品牌/家族**：用该家族关键词召回；空结果先按 [search 的规范化与恢复链](../arkcli-models/references/arkcli-models-search.md#空结果规范化与证据冲突) 校正一次，不把品牌当精确 ID。
+3. **候选字段**：读取真实 `display_name/name/primary_version/lifecycle_status/input_modalities/output_modalities/create_time/update_time`。新接入优先 Published，排除名称明确标 internal/test 以及 Shutdown/Retiring 的推荐项；未知状态不等于可部署。版本非空才拼 `name-version`，不猜日期；自定义模型保留 `cm-...` 身份。
+4. **排序与覆盖**：默认严格按真实 `create_time` 倒序，最新创建/发布的候选在前；只有用户明确要求“最近更新”才按 `update_time` 倒序。禁止因历史偏好或上文提过某旧型号就把它置顶；可在问题正文提醒，但不得改顺序或自造“推荐/主力/旗舰”标签。不能用名称、ID 内时间或 search 默认相关性冒充创建时间；时间缺失/不可解析时标明未知，不伪造排序。无偏好时展示 5–8 个代表，兼顾实际存在的文本、多模态、图像、视频；有硬任务条件就只列匹配者，不为凑数混入其他任务。label 使用原始展示名，description 附完整 ID、模态和状态。
+5. **0/1/N**：0 个如实说明并补问一个关键条件；1 个复述真实 ID；N 个使用宿主提供的结构化选择能力，用户选定前停止，不替选第一项。只要求查询/命令时不创建。
+6. **恢复不等于无限重试**：stderr 与 stdout 分离并检查退出码。先读取工具已保存的完整 JSON；确无完整捕获可把同一只读查询重取到文件，不能从截断预览生成选项。成功为空允许规范化关键词或放宽一个非硬性偏好并说明；鉴权/权限失败不当成空，不换身份。仍不完整/无匹配则报告边界与待补条件，不重复盲查。
+7. **回到创建流程**：选定精确目标后才读取所需详情/真实请求字段。明确版本或模态不支持时停止；不能用 activate 修复错误版本。用户选模型不等于批准创建，最终按共享授权流程执行；`+deploy` 不支持 `--dry-run`，不要发明预览 flag。
+
+精简字段模板见 [search reference](../arkcli-models/references/arkcli-models-search.md#未定模型时的实时候选模板)。以下仅用于未定模型的新接入推荐，对已保存完整候选作本地排序，不新增 API 请求，也不用于过滤用户已指定的精确目标：
+
+```bash
+jq '[.items[]
+  | select(.lifecycle_status == "Published")
+  | select((.name | test("internal|test"; "i")) | not)
+  | {display_name,name,primary_version,lifecycle_status,input_modalities,output_modalities,create_time}]
+  | sort_by(.create_time // "") | reverse' "$candidate_file"
+```
+
+先检查顶层 `items` 为数组及关键字段是否齐全，缺时间只能标“时间未知”。该投影不是账号可部署性验证，不逐候选循环 get/价格接口；只补齐完成当前任务所需的证据。
+
+Endpoint 名称不阻塞只读候选查询；模型选定后再补名称并确认最终创建参数。
 
 **新增 flag `--set-default <modality>`**: 部署成功后自动把新 endpoint 设为 active profile 该 modality (`text` / `image` / `video`) 的默认资源。仅在真实部署成功且用户明确传 modality 时生效；失败仅 stderr warn，不阻断部署主流程。详见 [`../arkcli-shared/references/profile-defaults.md`](../arkcli-shared/references/profile-defaults.md)。
 
@@ -72,34 +89,6 @@ Endpoint 名称不应阻塞上述只读候选查询；模型选定后，再收�
 - `+deploy` 创建成功后会**自动**把示例渲染到 `./ark-examples/<ep-id>/`（按 ep-id）；想按基础模型名另出一份则跑 `+code-example`
 - 模型未开通时 `+deploy` 的开通在**非 TTY 下被硬拒、`--yes` 也不放行**；**禁止自己补 `--yes` / `echo Y` / 设 `ARKCLI_ALLOW_HEADLESS_ACTIVATION`**，必须把开通（计费）交还真人在终端 / console 处理
 - 语音模型（TTS / ASR / 播客 / 音色 / 实时语音交互）广场可搜不等于可部署；命中这类模型时停在 `arkcli models search <keyword>`，不要给 `+deploy` 命令
-
-## 创建意图中的模型澄清
-
-只要用户的最终目标仍是“创建 / 新建 / 部署 Endpoint”，即使尚未给出完整模型 ID，也必须留在 `arkcli-deploy` 工作流；`arkcli-models` 此时只是临时调用的只读候选查询能力，不能把创建任务改路由成纯模型发现。
-
-候选必须来自**本轮** ArkCLI 的实时结构化输出，禁止从模型记忆、示例或旧版本号补全。
-
-先确定用户硬条件与关键词，初次用 `models search "<keyword>" --size 10 --format json`；无关键词就省略。关键词用真实名称/家族的子串，能力和模态用真实 flags，不把多个自然语言概念拼成模型名。已有完整本轮结果就复用。
-
-1. **完全没给模型**：按用途/输出模态查询；没有用途时展示实时代表供选择，不从记忆列型号。
-2. **只有品牌/家族**：用该家族关键词召回；空结果先按 [search 的规范化与恢复链](../arkcli-models/references/arkcli-models-search.md#空结果规范化与证据冲突) 校正一次，不把品牌当精确 ID。
-3. **候选字段**：读取真实 `display_name/name/primary_version/lifecycle_status/input_modalities/output_modalities/create_time/update_time`。新接入优先 Published，排除名称明确标 internal/test 以及 Shutdown/Retiring 的推荐项；未知状态不等于可部署。版本非空才拼 `name-version`，不猜日期；自定义模型保留 `cm-...` 身份。
-4. **排序与覆盖**：默认严格按真实 `create_time` 倒序，最新创建/发布的候选在前；只有用户明确要求“最近更新”才按 `update_time` 倒序。禁止因历史偏好或上文提过某旧型号就把它置顶；可在问题正文提醒，但不得改顺序或自造“推荐/主力/旗舰”标签。不能用名称、ID 内时间或 search 默认相关性冒充创建时间；时间缺失/不可解析时标明未知，不伪造排序。无偏好时展示 5–8 个代表，兼顾实际存在的文本、多模态、图像、视频；有硬任务条件就只列匹配者，不为凑数混入其他任务。label 使用原始展示名，description 附完整 ID、模态和状态。
-5. **0/1/N**：0 个如实说明并补问一个关键条件；1 个复述真实 ID；N 个使用宿主提供的结构化选择能力，用户选定前停止，不替选第一项。只要求查询/命令时不创建。
-6. **恢复不等于无限重试**：stderr 与 stdout 分离并检查退出码。先读取工具已保存的完整 JSON；确无完整捕获可把同一只读查询重取到文件，不能从截断预览生成选项。成功为空允许规范化关键词或放宽一个非硬性偏好并说明；鉴权/权限失败不当成空，不换身份。仍不完整/无匹配则报告边界与待补条件，不重复盲查。
-7. **回到创建流程**：选定精确目标后才读取所需详情/真实请求字段。明确版本或模态不支持时停止；不能用 activate 修复错误版本。用户选模型不等于批准创建，最终按共享授权流程执行；`+deploy` 不支持 `--dry-run`，不要发明预览 flag。
-
-精简字段模板见 [search reference](../arkcli-models/references/arkcli-models-search.md#未定模型时的实时候选模板)。以下为对已保存完整候选的本地排序，不新增 API 请求：
-
-```bash
-jq '[.items[]
-  | select(.lifecycle_status == "Published")
-  | select((.name | test("internal|test"; "i")) | not)
-  | {display_name,name,primary_version,lifecycle_status,input_modalities,output_modalities,create_time}]
-  | sort_by(.create_time // "") | reverse' "$candidate_file"
-```
-
-先检查顶层 `items` 为数组及关键字段是否齐全，缺时间只能标“时间未知”。该投影不是账号可部署性验证，不逐候选循环 get/价格接口；只补齐完成当前任务所需的证据。
 
 ## 路由判断
 

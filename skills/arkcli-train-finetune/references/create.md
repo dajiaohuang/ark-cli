@@ -1,5 +1,9 @@
 # 创建精调任务
 
+`--train-file` 与 `--validation-file` 都会在在线 `--estimate` 或真实提交前上传到 TOS；最终 `data.TrainingSet` / `data.ValidationSet` 使用 `TosBucket` 和 `TosPaths`，不把本地路径交给服务端。`uploaded_files` 包含两组上传记录，训练 token 预估只使用训练集。即使训练集已是 TOS 引用，本地验证集也会上传；上传失败时停止提交。`--estimate` 会上传文件，但不会创建训练任务。
+
+创建输出仍为 `id` 和 `url`；火山链接继续使用 `console.volcengine.com`。
+
 - 参考以下顺序完成创建；当用户提供信息不足时，查询并给出建议。
 - 若参数已明确，允许直接执行 `create --estimate` 获取在线 Token 与费用估算；估算失败或信息不足时，再按错误类型补查。
 - 真实 create 必须等待用户确认。

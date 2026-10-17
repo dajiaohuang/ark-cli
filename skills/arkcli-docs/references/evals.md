@@ -1,5 +1,20 @@
 # 验收用例
 
+## 教程整理的唤起回归（Viking 4335 / 163542）
+
+- 原题：可以把豆包模型的接入教程全部整理成文档，然后发给我吗。
+- 已观察到的失败：没有读取 Docs Skill 或官方正文，仅凭账号资源与 Key 列表编写教程；文件中扩写了未核实的密钥展示规则、计费规则、SDK 字段和错误码。任务完成不代表这些内容有依据。
+- 验收分两层：先从新会话的实际 Skill 读取记录确认进入 `arkcli-docs`，再核对官方正文读取与交付文件。只在前言自称“已参考官方文档”不通过。用户没说“官方”、没给 URL、要求输出文件，也必须能唤起本 Skill。
+- 通过条件：先确定接入范围并读取官方正文，示例委托 Code Example；逐节列出实际来源和未核实项，读取保存后的全文完成事实核验，再交给宿主提交附件。不得把账号查询成功等同于教程事实已核实。
+- 反例边界：仅将用户已给内容转成 Word 不强制检索；查询账号模型/Endpoint 走 Resources；明确要求模型代写走 Chat，不为了提高评测分替教程整理增加付费生成。
+
+## 教程附件的事实回归（Viking 163542）
+
+- 输入：把豆包模型的接入教程全部整理成文档发给我。工具查询与官方示例均返回 `doubao-seed-2-1-pro-260915`，已写附件误写成 `doubao-seed-2-1-pro-260918`。
+- 必须失败的输出：仅校验文档可打开、字数或章节数，就交付带错误 ID 的附件；正文正确但任一代码块仍含错误 ID 也失败。4318 的原题命中了这个反例。
+- 通过条件：读取实际保存文件，枚举全部模型 ID/版本并逐项对照本轮来源，修正所有不一致项；不存在来源的值删除或改为明确占位，不猜日期。重新读取改后的文件再交付。
+- 对照用例：真实响应确实返回新版 ID 时保留新版；不同产品或协议的合法别名分别保留来源，不能为了字符串统一抹掉差异；只整理官方资料不要求额外付费调用模型生成正文。
+
 本表与 [`../SKILL.md`](../SKILL.md) 的六条使用纪律和反唤起清单严格一一对应。
 改动任一侧都必须同步另一侧。
 
@@ -56,6 +71,8 @@ ARKCLI_NO_UPDATE_NOTIFIER=1 ARKCLI_CALLER_TYPE=ai_agent ARKCLI_CALLER_NAME=<agen
 | 用户问限制，但大纲没有对应标题 | 读取页面前言、父节及相关 Tip / Warning / Note 内文；不把缺标题当成没有限制 |
 | 原文只有约束，没有解释原因 | 直接回答约束；不凭推测扩写原因或相邻功能，需要解释时另取依据 |
 | 用户要「文档里的代码示例」，示例在 `<Tab>` 里 | 提取围栏代码块内容，不把 `<Tab>` 当成示例的一部分 |
+| 正文里是 `**选项：Python**`、`**选项：Go**` 等并列小节 | 按用户使用的语言选取对应小节，不把多个选项合并成一个流程 |
+| 限制写在以 `> **注意**` 开头的引用块里 | 与普通正文同等对待，保留限制及其适用条件，不因它在引用块里而忽略 |
 | DSL 密集页 `--section` 返回 `section_unavailable` | 说明该页不支持按章节读，改读全文 |
 | 一个代码示例横跨多个 chunk | 顺序拼接 `content` 后再解读，不执行、不声称「已完整」 |
 
@@ -166,3 +183,14 @@ ARKCLI_NO_UPDATE_NOTIFIER=1 ARKCLI_CALLER_TYPE=ai_agent ARKCLI_CALLER_NAME=<agen
 | 用户要“公开 API 契约目录”，Agent 先读根 help 或 `api --help` | 仍选 `docs apis list` 的发布目录；`api --list` 只枚举本机 Action，不能把本地注册清单当作公开契约交付 |
 
 - 消息 schema 按 role 分支：部分角色必填 content，另一角色允许 content 或 tool_calls 至少其一；不得概括为每条消息都必填 content。
+
+## Recovery regression scenarios
+
+| Scenario | Expected behavior |
+|---|---|
+| A legacy CDN Markdown URL is rejected | Read error.hint; locate the page through current-product list/search and use its returned url; do not invent a host or slug |
+| Last response has has_more=false, but a further chunk read fails | Stop reading; do not increment the offset or repeat the failed call |
+| Public-backend continuation state is lost and unread content is still needed | Restart at chunk 0 only when no completed state is known; keep the new snapshot separate |
+| has_more=false is known but the full body or snapshot is unavailable | Stop without another Docs call; do not reread merely to reconstruct a completed response |
+| Corrected input produces the same validation error | Stop this branch and report the evidence gap instead of retrying indefinitely |
+| Profile/login or MCP configuration is missing | Resolve authentication/configuration before another Docs request; do not switch products |

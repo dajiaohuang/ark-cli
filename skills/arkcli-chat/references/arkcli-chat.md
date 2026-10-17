@@ -242,6 +242,20 @@ arkcli api arkruntime.create_responses --params '{
 | `Error code: 400 - ... model not found` | `--model` 名字或 endpoint ID 错误 | 用 `arkcli models search` / `arkcli infer endpoint list` 核对 |
 | `Error code: 404 - InvalidEndpointOrModel.NotFound` | 不存在、不可见或与当前数据面不兼容；不能仅凭 404 认定缺版本 | 在同一 Profile/凭证下用 resources 和 models 核对，不自动追加版本、切计费路径或重开对话 |
 
+## 客户端拒绝与服务端错误的证据分层
+
+先读取用户原客户端的日志、实际参数、时间、HTTP 状态/错误码及 request ID，区分：
+客户端在发送前校验拒绝、请求已发送但传输失败、服务端明确响应。证据不足时保留未知；
+没有 usage 或 request ID 不能单独证明请求未发送，新探测的结果不能替代原请求。
+
+用户给 Endpoint 时，在同一 Profile/身份下用 `resources resolve <ep>` 保留真实绑定，
+按绑定模型的精确版本核对 text/Responses 的 API 支持及图片等输入能力；Custom Model
+的 `base_model_*` 只用于能力来源，实际调用仍保持原 `ep-*` 或 `cm-*` 身份。
+`resources list --modality image` 是**图片生成资源 lane**，不是 text/Responses 接收图片的
+能力清单；text lane 的 EP 也可能支持图片输入。不能根据 image default、资源数量、
+EP 名称或列表为空断言图片输入支持/不支持，元数据缺失也不能当作 `supported=false`。
+复用本次已获取的只读结果，不为诊断修改 Profile/default、换 Key 或增加未授权付费推理。
+
 ## `arkcli api` 直接调用（raw）
 
 `+chat` 背后的 Operation 是 `arkruntime.create_responses` 和 `arkruntime.create_responses_stream`，可以直接调：

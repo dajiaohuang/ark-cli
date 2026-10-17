@@ -155,8 +155,9 @@ TTY 配置豆包搜索时，在 MCP 与 Skill 都成功后展示“关闭原生 
 ### ZCode 模型 limit 与网关边界
 
 `helper configure zcode` 写 `$ZCODE_HOME/v2/config.json`（默认
-`~/.zcode/v2/config.json`）。每个模型的 `limit` 来自 ArkModels 元数据，不使用统一
-fallback，也不根据 `glm-*` 等名称猜测：
+`~/.zcode/v2/config.json`）。Plan 模型的 `limit` 优先来自套餐模型接口的
+`ModelCapability`；ArkModels 只补缺失字段，最后才使用内置兼容表补仍未知的字段，
+不根据临时模型名称动态猜测：
 
 - `limit.context` 原样保留 `context_window`，供 ZCode 计算上下文与自动压缩；
 - `limit.output` 来自 `max_completion_tokens`，但写配置时把已知二进制 KiB 近似值
@@ -164,6 +165,11 @@ fallback，也不根据 `glm-*` 等名称猜测：
   `262144 -> 256000`、`393216 -> 384000`；已是十进制或不符合已知规则的值不变；
 - 任一字段无权威值就只省略该字段；两者都未知时省略整个 `limit`。动态路由别名
   `ark-code-latest` 没有目标元数据时不继承任一静态模型的 limit。
+
+Plan 模型列表必须区分两条来源：交互式「智能路由」只使用 LatestModel 路由候选；
+「指定具体模型」以及写入 Agent 的模型目录只使用 VirtualModelID，并额外保留
+`ark-code-latest` 合成入口。可用的低/中/高负载只在服务端返回
+`Load.Status=1` 且 `Load.Level=1/2/3` 时展示。
 
 若 ZCode 报 `InvalidParameter` 400 且请求模型的输出上限超过网关限制，先使用新版本
 ArkCLI 重新执行原 `arkcli helper configure zcode --profile ... --model ...`，再完全退出
@@ -185,7 +191,7 @@ ZCode 主进程、重新打开并新建会话；只切换模型或继续使用�
 | `未找到 Agent Plan profile` | 账号无 agent-plan 订阅 / 未登录 | `arkcli auth login` 开通 Agent Plan |
 | `检测到多个 Agent Plan profile` | 多个 agent-plan profile | 加 `--profile <名>` 指定 |
 | `profile X 不是 Agent Plan` | `--profile` 指了非 Agent Plan(agent-plan / agent-plan-team 之外) | 换成 Agent Plan profile |
-| 豆包搜索(web-search)写了占位符 | plan profile 无可用专属/席位 API Key | 先运行 `arkcli profile keys refresh`。Agent Plan 个人版专属记录非 Active 时，真人 TTY 的 Helper 会在明确提示旧 Key 立即失效后询问是否只轮转一次，并最多读 3 次状态；无专属记录则去 Agent Plan 使用配置页。团队版检查 Running 席位。不要用只操作普通池的 `arkcli auth apikey` 修复 Plan profile |
+| 豆包搜索(web-search)写了占位符 | plan profile 无可用专属/席位 API Key | 先运行 `arkcli profile apikey refresh`。Agent Plan 个人版专属记录非 Active 时，真人 TTY 的 Helper 会在明确提示旧 Key 立即失效后询问是否只轮转一次，并最多读 3 次状态；无专属记录则去 Agent Plan 使用配置页。团队版检查 Running 席位。不要用只操作普通池的 `arkcli auth apikey` 修复 Plan profile |
 | `检测到多个 OpenViking 库` | 账号多个 OpenViking 库且没指定 | 使用宿主结构化选择能力展示本次错误返回的库名；选定后加 `--ov-resource <库名>` 重跑 |
 | 跳过了 openviking-dataplane(个人版) | 个人版账号下 0 个 OpenViking 库 | 去 create URL 建库后重跑;或接受跳过(另三台含 openviking-controlplane 已注入)。注:**团队版本就不注入 OV**,不会出现这条 |
 | openviking-dataplane 写了占位符 | OpenViking 列库 / 取 key 失败 | 手动填 `Authorization: Bearer <真实 key>`,或重跑 |

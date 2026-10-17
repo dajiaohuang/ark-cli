@@ -45,7 +45,7 @@ arkcli agent session upgrade <session-id> \
 - 后端要求 `agent/environment/vault_ids` 至少提供一个；`initial_events` 本身不是升级目标。upgrade 当前不支持 `title/tags/resources/checkpoint_id/environment_id` 等顶层字段。
 - 不传 version 时，以当前 Session Agent 快照为基线，未传子字段保留。指定正版本时，以该已发布版本配置为新基线，再应用本次显式覆写；旧 Session overrides 不保证自动保留。用户要“最新版”时先查询真实版本号，不发送字符串 `latest`，也不省略版本来表示最新版。
 - `tools/mcp_servers/skills` 非空数组整组替换，`[]` 清空，未提供或 `null` 保留基线；没有默认工具或 Skill 自动注入。
-- `agent.model` 支持 `id/speed/thinking/reasoning_effort/service_tier/provider/protocol/base_url/headers`。**这是升级接口的契约，与创建 override 的五字段过滤不同**，CLI 不过滤用户显式传入的模型接入字段。模型 ID 改变后，模型解析及最终 protocol/defaults 由服务端决定。选择参数必须以目标模型 metadata 为准，不沿用旧模型能力假设；不要默认注入 provider、URL、headers 或 speed。
+- `agent.model` 支持 `id/provider/protocol/base_url/headers/token_limits/input_modalities` 和四个运行参数；创建 override 同样支持这些字段。upgrade 使用 snake_case，不改写 Headers 的 key/value。详见 [BYOK](byok.md)；不为省略字段补默认值。
 - cloud `config.networking` 整块替换；`config.env` 按 key 合并，本次同 key 覆盖旧值；`config.packages` 按包名合并，本次同名包替换旧 spec。空 env/packages 不会清空历史项。`setup_script` 显式值替换，空字符串可传。只给 environment id 不代表从 Environment 资源拉取最新配置；应明确提供期望 config。
 - self_hosted Session 可以升级 Agent；不支持 cloud/self_hosted 类型互切，不应发送自托管 Sandbox 的 networking/packages/env/setup_script。用户 TOS 配置不可通过升级修改。
 - `vault_ids` 必须与当前绑定集合一致（忽略顺序/重复）；`[]` 仅适用于原本没有绑定的 Session。不发送凭证密文；不要把刷新误称为更换绑定。
@@ -59,3 +59,6 @@ arkcli agent session upgrade <session-id> \
 5. 升级期间不要发消息、删除、打断或重复升级。若本次显式启用 compact，不要再独立发送第二次 compact。需要验证推理时，在配置回读确认后，取得用户测试授权再发最小消息。
 
 API Key 和项目来自当前产品/profile，显式 `--base-url` 需要配对显式 API Key。Preview 会对标准 Authorization/API Key 字段脱敏，但不要把任意环境变量或自定义 header 的值当成已全面脱敏；不要在对话、命令日志或报告中展示真实密钥。
+## 工具版本兼容
+
+Session upgrade 不自动把旧工具集升级为 20260916。用户明确要求时才在完整 `agent.tools` 中修改目标条目的 type/name，保留其余配置；参见 [工具版本说明](agent.md#默认-agent-工具)。
