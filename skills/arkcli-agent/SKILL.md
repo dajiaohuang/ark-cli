@@ -59,6 +59,7 @@ Environment 还是 Session。用户提供明确 ID 时直接查对应资源，�
 
 | 用户意图 | 首选命令 | 细节 |
 | ---- | ---- | ---- |
+| 仅开通 MA 服务（火山） | `arkcli agent activate`；不创建资源、不开通模型 | [`references/activation.md`](references/activation.md) |
 | 创建 / 更新 / 删除 Managed Agent | `arkcli agent agent ...` | [`references/agent.md`](references/agent.md) |
 | 启用 / 关闭 Todo 任务计划工具 | `agent agent create/update --tool`；非基础 toolset、不需要 Models | [`references/todo-write.md`](references/todo-write.md) |
 | 复制已有 Agent 并改名 / 局部覆盖配置 | `arkcli +new-agent --fork <agent-id> [--name <new-name>]` | [`references/agent.md`](references/agent.md#复制-agent) |

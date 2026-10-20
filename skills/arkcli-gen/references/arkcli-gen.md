@@ -13,7 +13,7 @@
 `+gen` **没有 `--no-progress` flag**；不要把 `+chat` 的心跳开关复制过来。需要脚本消费时分开捕获完整 stdout/stderr，不吞错误，也不把日志混成 JSON。用户在调 HTTP/SDK 请求时先读 [CLI 与 HTTP 参数边界](intent-and-validation.md#21-cli-参数与-http--sdk-请求不是同一层)，CLI 成功不能证明其原请求正确。
 
 `--model` 使用本次资源解析确认的调用 ID。套餐别名、版本化 ID 和 Endpoint 不是可任意互换的名称。
-Agent Plan / Team 的默认视觉别名保持原样，例如 `doubao-seedream-5.0-lite`；
+Agent Plan / Team 的默认视觉别名保持原样，例如 `doubao-seedream-5.0-flash`；
 `models get` 返回的规范 Name/Version 是能力查询身份，不能自动替换套餐调用 ID。
 Platform / Coding Plan / Coding Plan Team 生成使用已部署的 `ep-*` 和后付费凭证。
 只有用户给的是尚未解析的模型族名时，才查询权威模型详情与当前资源候选，不用正则猜版本，

@@ -190,3 +190,9 @@
 - list 成功但 create 返回 404：区分控制面与数据面，保留错误码和 RequestId；不直接认定服务未发布，不循环试写或猜 raw API。
 - 已选 agent model list 返回的模型：Dream 直接使用模型 ID，不额外创建 Endpoint，不把 BYOK Model 对象传入 Dream。
 - create 超时无 ID，或 wait completed 但只读到输出文件列表：前者先核对已有任务、不重复创建；后者只报告完成与文件元数据，未读内容不得声称内容验证通过。
+# 独立开通 MA
+
+- 用户只要求开通 MA：选择 `agent activate`，不创建 Agent 或 Session，不查询或开通模型。
+- 非交互且尚未授权：不自行设置 `ARKCLI_ALLOW_HEADLESS_ACTIVATION`；解释账号级计费能力开通并等待确认，不能用 `--yes` 绕过。
+- 已有明确授权：使用独立开通命令；根据 `already_activated` 区分本次开通与原已开通，不声称创建了资源。
+- 要求只预览：说明此命令不支持 `--dry-run`，不发起开通；未知状态不当作已开通。

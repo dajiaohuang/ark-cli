@@ -59,7 +59,7 @@
 
 **核心原则：场景表给意图，`arkcli models search` 给事实。表里的版本/full-id 只是起点，命中以 search 实时返回为准。**
 
-**层级边界（别串台）：本表是「模型广场选型层」，数据源永远是 `models search`（catalog），给的是 catalog 推荐模型名。** "当前 profile 能不能调用、确切可调用 id"是下游可用性层（`resources list` → `models get` → `+gen`/`+chat`，arkcli-gen 已实装），**不在本表职责内**。纯选型问题（"查/选哪个模型"）只走 `models search`，不要跑去查 `resources list`；只有用户真要生成/调用时才下沉到 resources list 解析本 profile 真实 id。例：生图选型答 `doubao-seedream-5-0`（catalog 名）；具体到套餐 profile 能点的可能是 `doubao-seedream-5.0-lite`，那是下游 `+gen` 解析的事。
+**层级边界（别串台）：本表是「模型广场选型层」，数据源永远是 `models search`（catalog），给的是 catalog 推荐模型名。** "当前 profile 能不能调用、确切可调用 id"是下游可用性层（`resources list` → `models get` → `+gen`/`+chat`，arkcli-gen 已实装），**不在本表职责内**。纯选型问题（"查/选哪个模型"）只走 `models search`，不要跑去查 `resources list`；只有用户真要生成/调用时才下沉到 resources list 解析本 profile 真实 id。例：生图选型答 `doubao-seedream-5-0`（catalog 名）；具体到套餐 profile 能点的可能是 `doubao-seedream-5.0-flash`，那是下游 `+gen` 解析的事。
 
 ```
 ① 用户意图 → 匹配场景标签            （用"推荐模型描述"里的需求词提升命中）

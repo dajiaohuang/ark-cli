@@ -51,7 +51,7 @@ S10 改造后, arkcli 不再因为 active profile 是 `coding-plan` 就阻断 `+
 - `arkcli resources list --modality image` 在 coding-plan profile 下会列出同账号下 platform 已 deploy 的 endpoint
 - `arkcli profile set-default --modality image <ep-id>` 在 coding-plan profile 下也能 verify + 写入 (走同款 ListEndpoints)
 
-`+gen --modality image` 在 `agent-plan` profile 下默认会用 `doubao-seedream-5.0-pro`, `--modality video` 默认 `doubao-seedance-2.5`. Agent Plan 生图还可选 `doubao-seedream-5.0-lite`、生视频还可选 `doubao-seedance-2.0` 等旧版本（均非默认）。用户跑 `arkcli resources list --modality image` / `video` 可看完整可用清单.
+`+gen --modality image` 在 `agent-plan` profile 下默认会用 `doubao-seedream-5.0-pro`, `--modality video` 默认 `doubao-seedance-2.5`. Agent Plan 生图还可选 `doubao-seedream-5.0-flash`，生视频还可选 `doubao-seedance-2.0` 等旧版本（均非默认）。用户跑 `arkcli resources list --modality image` / `video` 可看完整可用清单.
 
 完整凭证/资源矩阵与临时覆盖组合见
 [`execution-context.md`](execution-context.md)。

@@ -11,7 +11,7 @@
 arkcli profile set-default --modality text doubao-seed-2-0-pro-260215
 
 # 设 image default（gen --modality image 用）
-arkcli profile set-default --modality image doubao-seedream-5.0-lite
+arkcli profile set-default --modality image doubao-seedream-5.0-flash
 
 # 设 video default（gen --modality video 用）
 arkcli profile set-default --modality video doubao-seedance-2.0
