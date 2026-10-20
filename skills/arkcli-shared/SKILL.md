@@ -126,6 +126,8 @@ arkcli profile use <name>                                    # 切换默认 prof
 
 除 `arkcli auth ...`、`arkcli profile list/show`、`arkcli +connect list`、`arkcli update ...` 外，默认认为业务命令**需要先过认证检查**。不要跳过认证检查就连续重试一串业务命令。
 
+**待授权优先于重新登录。** 本轮或用户提供的上一轮状态为 `stage=authorize_pending`、用户尚未完成授权且没有 code 时，等待用户；不要重新执行任何 `auth login`、`config init` 或原业务命令。可只读检查一次 `auth status`：若已有所需的有效凭据则恢复原任务；`logged_in=false` 只说明尚未登录，不表示 pending 过期或丢失，仍须等待。仅收到 CLI 明确的会话过期/不存在错误或用户明确要求重启登录，才重开 Phase 1。
+
 1. 先运行 `arkcli auth status`；已登录就继续目标命令
 2. 未登录 / 凭证失效：保持当前编译产品，按其认证 Skill 选择登录命令，不靠 Profile 推断或切换产品
    - **火山**：直接 Bash 执行 `arkcli auth login volc-sso`

@@ -188,9 +188,13 @@ ARKCLI_NO_UPDATE_NOTIFIER=1 ARKCLI_CALLER_TYPE=ai_agent ARKCLI_CALLER_NAME=<agen
 
 | Scenario | Expected behavior |
 |---|---|
+| 同产品链接的 region 前缀不被支持，error.hint 已给出具体目录查询 | 执行这次查询，选实际返回的 URL/snapshot 再读正文；不猜 URL、不更改 MCP |
+| 上次登录返回 authorize_pending，用户尚未授权也没有 code | 转 Auth Skill 等待；auth status 的 logged_in=false 不构成 pending 失效证据，不重试 Docs、不重复登录或 config init |
 | A legacy CDN Markdown URL is rejected | Read error.hint; locate the page through current-product list/search and use its returned url; do not invent a host or slug |
 | Last response has has_more=false, but a further chunk read fails | Stop reading; do not increment the offset or repeat the failed call |
 | Public-backend continuation state is lost and unread content is still needed | Restart at chunk 0 only when no completed state is known; keep the new snapshot separate |
 | has_more=false is known but the full body or snapshot is unavailable | Stop without another Docs call; do not reread merely to reconstruct a completed response |
 | Corrected input produces the same validation error | Stop this branch and report the evidence gap instead of retrying indefinitely |
 | Profile/login or MCP configuration is missing | Resolve authentication/configuration before another Docs request; do not switch products |
+
+| 续读 snapshot 复制时丢失末尾，返回 validation | 对照原成功 JSON 恢复完整原值并保持下一块位置，仅纠正一次；不猜尾部、不从头重读，不用新大纲或目录 snapshot 接旧正文；原值仍失败则报告未读缺口 |

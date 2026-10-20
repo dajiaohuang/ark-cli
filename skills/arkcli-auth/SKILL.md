@@ -17,7 +17,7 @@ metadata:
 
 **⚠️ 0.1.16 变化总览（必读）**：
 1. SSO 登录引入 **Gate 1+2**：浏览器流后比对 SSO trn 与 `is_default profile.OwnerTrn`，4-case 分别走 `BuildFirstProfile` (新建) / `GUIDE_SKIP` (复用) / 提示切 default / 提示新建。详见 `docs/runtime/volc-sso.md`。
-2. **AK/SK 登录通道暂关**：`auth login --access-key / --secret-key` 已注释,promptui 也移除"AK/SK"选项；SSO（火山）+ `arkcli auth login --no-browser`（**根命令 flag, 不是 volc-sso 子命令 flag**）是唯一登录入口。
+2. **AK/SK 登录通道暂关**：`auth login --access-key / --secret-key` 已注释,promptui 也移除"AK/SK"选项；SSO（火山）+ `arkcli auth login --no-browser`（**注册在 auth login，由 volc-sso 继承**）是唯一登录入口。
 3. **auth status / auth whoami 输出新增 profile 切面字段**：`active_profile.{name,type,region,project,owner_trn}` 和 `profiles_summary[...]`；顶层 `auth_method/logged_in/volc_sso/ark_api_key` 等老字段全部保留（向后兼容）。
 4. **Profile 管理迁移到 `arkcli profile`**：`config init/list/show/switch/delete` 已 deprecated，详见 [`../arkcli-config/SKILL.md`](../arkcli-config/SKILL.md)。
 5. **0.1.17 首登动态选 project**：`BuildFirstProfile` 的 project 步骤改为经 IAM `ListProjects` 拉当前身份名下真实 active project 列表交互选（拉取失败/无权限回退兜底 `default`，不阻断登录）。登录后想换 project 不必重登：`arkcli profile project [<name>]`（拉同一列表重选，把 platform profile 重派生到新 project，个人版 plan profile 保留），详见 [`../arkcli-profile/SKILL.md`](../arkcli-profile/SKILL.md)。
@@ -46,6 +46,8 @@ metadata:
 
 ## Agent 快速执行顺序
 
+**待授权优先于重新登录。** 本轮或用户提供的上一轮状态为 `stage=authorize_pending`、用户尚未完成授权且没有 code 时，等待用户；不要重新执行任何 `auth login`、`config init` 或原业务命令。可只读检查一次 `auth status`：若已有所需的有效凭据则恢复原任务；`logged_in=false` 只说明尚未登录，不表示 pending 过期或丢失，仍须等待。仅收到 CLI 明确的会话过期/不存在错误或用户明确要求重启登录，才重开 Phase 1。
+
 1. 业务命令开始前如果不确定认证状态，先执行 `arkcli auth status`
 2. 需要识别当前用户身份（"我创建的 / 我的 xxx" 语义）时，用 `arkcli auth whoami`，不要去 `~/.arkcli/.env` 里手动解 JWT
 3. **未登录或凭证失效时，火山方舟场景直接通过 Bash 执行 `arkcli auth login volc-sso`**（不要只是"提示用户去跑"）。SSO 是 0.1.16 唯一可用登录通道，覆盖控制面 BFF + 数据面绝大多数能力
@@ -57,7 +59,7 @@ metadata:
    - **Phase 1**：跑 `arkcli auth login --no-browser`。它打印授权 URL 并以 JSON 输出 `{"stage":"authorize_pending","authorize_url":"...","next_command":"..."}` 后**立即退出**（不傻等）。把 `authorize_url` 原样转发给用户，请他在**任意设备**浏览器完成 SSO，复制页面显示的 **base64 授权码**回来。
    - **Phase 2**：拿到授权码后跑 `arkcli auth login --no-browser --code <授权码>` 完成登录（读 Phase 1 落盘的 PKCE/state 换 token）。`--code` **必须连 `--no-browser`**（单独写会报 `--code 仅在 --no-browser 模式下有效`）。
    - **两段必须同一运行环境**：Phase 1 落盘 `~/.arkcli/.sso-pending.json`、Phase 2 读它接力，**两条命令须共享同一 `HOME` / 同一持久化卷**（同一容器 / 开发机）；跨容器或跨 HOME 派发会让 Phase 2 报「没有待完成的…会话」。期间不要动 `~/.arkcli/`。
-   - **flag 位置**：`--no-browser` / `--code` 都挂在 `auth login` **根命令**上，不是 `volc-sso` 子命令；`auth login volc-sso --no-browser` 会报 `unknown flag`。
+   - **flag 位置**：`--no-browser` / `--code` 注册在 `auth login`，并由 `volc-sso` 继承；两种入口都支持。Agent 示例统一用 `arkcli auth login --no-browser`，Phase 2 同时带 `--no-browser --code`。
    - **出错恢复**：`会话过期(TTL 10min)` / `没有待完成的会话` → **重跑 Phase 1**（确保同一 HOME）；`base64 解码失败` / `state 不匹配(CSRF)` / token 交换瞬时失败 → pending 仍在盘，**TTL 内纠正后直接重试 Phase 2**（贴对当前 authorize_url 的码，必要时从同一 URL 重新授权拿新码），**不必**重跑 Phase 1。
    - 真人终端（TTY）下 `arkcli auth login --no-browser` 仍是一条命令交互式（打印 URL 后当场粘贴），行为不变。
 5. 用户明确要求挑选登录方式时，因 stdin 交互 agent 无法替用户选，让用户自己跑 `arkcli auth login`

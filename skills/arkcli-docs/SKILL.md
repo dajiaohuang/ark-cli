@@ -28,6 +28,8 @@ metadata:
 
 问 CC Switch 里如何选豆包时，优先定位对应套餐的官方 Claude Code「使用 CC Switch」章节，核对 GUI 槽位、专属 Key、Base URL 和 Model Name；不能把通用第三方工具文档的 `/api/compatible` 当成 Coding Plan 或 Agent Plan 的默认地址。用户未说明套餐时，分别说明已核实的 Coding Plan、Agent Plan 与按量接入条件，再请其选定；当前套餐支持的豆包模型名用对应 `arkcli plans model-list --plan <plan>` 校准。该控制面查询若因宿主凭证失败，只能给标明来源与套餐的文档示例，不能宣称是当前账号实时可选清单。
 
+**先保留用户选择的检索方式。** 用户说“搜索官方文档”、没有给路径时，首个业务命令必须是 `docs search`；“每页 N 条”只决定 `--top-k N`，不改成目录查询。只有本次 search 已返回失败或零命中后，才按其提示降级 `docs list`。
+
 按请求选择入口，再执行对应命令：
 
 | 请求 | 首个业务命令 |
@@ -63,7 +65,12 @@ WebFetch 失败不代表正文不可用，同一个 URL 可交给 `docs get` 的
 
 ## 错误后的恢复
 
+- 只解释 CLI 已明确指出的拒绝原因。同产品文档站的同名 `.md` 链接受支持，不能由一个非法 URL 推断 `.md` 后缀不受支持。
+
+- URL 被拒绝时，`error.hint` 可能已给出具体的 `arkcli docs list --query ... --limit 20`；执行这次目录查询，再复制匹配条目的 `url` 和 snapshot 读取正文。提取出的 slug 只是查询词，不是已验证路径。无匹配就停止该分支；不因链接被拒绝而更改 MCP 配置。
+
 - `validation` 或 `not_found` 后先读 `error.hint`。链接被拒绝时，若输入保留了 `/docs/<slug>`，优先用 `docs list --query "<slug>"` 确认当前目录；从当前产品 `docs list` / `docs search` 返回的 `url` 重新定位；不要改域名、猜 slug 或把旧 CDN `source_url` 反复传给 `docs get`。目录确认不存在时如实报告，停止重复读取同一路径。
+- 原工具 JSON 是续读状态的唯一依据；回复中不必再次重写长 snapshot，下一轮也不从自己的摘要或复述恢复 token。snapshot 是不透明的完整字符串，续读必须从上次成功 JSON 原样复制，包括末尾字符；不解码、重建、缩写或根据记忆补齐。续读报 `validation` 时，先对照实际参数与原响应：若复制有差异，仅从上次成功正文 JSON 恢复原值纠正一次，并保留原 URL、next_chunk_start 与 chunk-count；这不是同参数重试。不得通过 --outline、list 或 search 取得新 snapshot 来接读旧正文；目录 revision 相同也不能证明正文版本相同。原值一致仍失败或原响应不可恢复时停止并报告未读部分，不猜 snapshot，也不在用户禁止重读时回到第 0 块。
 - 公共文档后端先判断是否已结束：上次成功响应或用户明确提供的续读状态为 `has_more=false`，直接说明已读完并结束，不再执行 `docs get/list/search`；即使缺少完整原响应、正文或 snapshot，也不为补齐证据而重读，除非用户明确要求刷新或重新读取。只有 `has_more=true` 才用原样的 `next_chunk_start` 和 snapshot 续读。仅在确实仍有未读内容且原续读状态无法恢复时，才从第 0 块开始新读取并单独保存，不拼接不同快照。只解释已有字段和停止决定，不补写未观察到的网络请求细节。
 - 相同输入的校验错误不要重试。按提示修正后若仍是同一错误，停止该分支并报告缺口；只有网络或服务暂时不可用才按共享协议有界重试。未配置 Profile / 未登录先转认证，缺 MCP 配置先核对当前产品和后端，不用重复 Docs 调用探测。
 

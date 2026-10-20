@@ -25,7 +25,13 @@
 不要删除 snapshot 保留 offset 重跑。只有原值一致仍失败，才报告这次读取失败；
 没有更多证据时不声称是「已知 CDN 故障」。
 
+续读的 `validation` 也要先核对 snapshot 是否完整复制（包括末尾字符）；有复制差异时仅从上次成功 JSON 恢复原值，保留 URL 和 next_chunk_start 纠正一次。不猜尾部、不原参数重试；原值一致仍失败或原响应缺失就报告未读缺口，用户禁止重读时不得从头开始。
+
+续读纠正只能复用原成功正文的 snapshot；不得用新大纲或目录 snapshot 接旧正文，即使 revision 相同也不行。
+
 ## 读取类错误
+
+文档 URL 被拒绝时，优先执行 `error.hint` 中具体的目录查询，再选取真实返回的匹配页面 URL；不请求被拒绝的主机，也不改写成猜测路径。无匹配就停止。缺 Profile 和凭据过期先处理认证，不通过换目录或搜索命令重试。
 
 | `error.type` | 含义 | 处置 |
 |---|---|---|
@@ -62,8 +68,10 @@
 
 ## 有界重试规则
 
+默认后端读取 Volc/BytePlus 官方文档却意外报必须配置 MCP 时，可能是实际执行的旧版 CLI 缺少内置后端。先核对实际可执行文件的版本和产品，再转 `arkcli-shared` 检查发行版本；需要时说明升级及随后同步 Skills 的步骤。不通过重复 Docs 调用或改 MCP 掩盖版本不匹配，未经授权不升级。用户显式选择 MCP 时仍按原配置流程处理。
+
 - 网络类（`network`、`service_unavailable`、`rate_limit`）：最多 2 次退避重试。
-- `auth`、`not_found`、`validation`、`invalid_response`、`section_*`：**一次都不要重试**，它们不会因为
+- `auth`、`not_found`、`validation`、`invalid_response`、`section_*`：**不原参数重试**；上文允许的 snapshot 复制纠正不是原参数重试。它们不会因为
   再试一次而变化。
 - 任何情况下都不要对同一个缺失路径循环 `get`，也不要靠猜 hash / CDN URL 去读已下线
   内容。
