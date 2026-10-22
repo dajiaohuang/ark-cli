@@ -98,12 +98,26 @@ arkcli profile use <name>                                    # 切换默认 prof
 
 优先按**用户目标**判断，而不是按命令名思考：
 
+### 先判断执行面：控制面 vs 数据面
+
+同一个 `arkcli` 里，不同命令使用不同凭证和执行面。**显式传入不属于该命令的 `--api-key` / `--base-url` 会 fail-fast**，不要把它们当通用凭证：
+
+| 功能 | 执行面 | 凭证 / 路由 | 硬约束 |
+|---|---|---|---|
+| 模型目录、Endpoint、自定义模型、Dataset、精调训练、用量/账单等管理 | **控制面**（OpenTOP / BFF） | SSO 派生的 STS（`arkcli auth status` / `auth login`）；可用 `--env` | 不消费数据面 `--api-key` / `--base-url`；`.env` 的 `ARK_API_KEY` 只服务推理，不能用于训练创建或 TOS 上传 |
+| `+chat` / `+gen` / `+understand` / Managed Agent session/files / raw `arkruntime` | **数据面** | Profile API Key、套餐席位 Key，或显式 `--api-key`（需要时配 `--base-url`） | 只做推理/会话调用，不改控制面资源；Plan Key 与 Platform paygo Key 不能互借 |
+
+> **精调是控制面，不是 Agent Plan 模型调用。** `arkcli train finetune *` / `arkcli dataset *` 走 SSO/STS；
+> `train finetune create` 明确拒绝 `--api-key`。训练数据用 `--train-file` / `--validation-file` 由 CLI 自动上传到
+> Ark 托管 TOS，不要把本地路径直接当后端数据地址。SFT/LoRA/DPO/RL 都不要转 `+chat` / `+gen`。
+
 | 用户目标 | 路径 | 关键点 |
 |---|---|---|
 | 试用模型 / 快速验证效果 | `auth` → `resources` / `models`（可选）→ [`+chat`](../arkcli-chat/SKILL.md) / [`+gen`](../arkcli-gen/SKILL.md) | Plan lane 用模型名；Platform lane 用 Endpoint |
 | 专项多模态理解（转写/抽取/字幕/框目标…） | `auth` → [`+understand`](../arkcli-understand/SKILL.md) | 有明确产出形态时走 understand，不是 chat |
 | 语音模型发现 / 选型（TTS / ASR / 播客 / 音色 / 实时语音交互） | `auth` → [`models search`](../arkcli-models/SKILL.md) | **仅支持广场检索**；不支持 `+chat` / `+gen` / `+deploy` / `+code-example` / `usage` / `pricing` / `onboard` |
 | 正式接入 / 稳定调用 | `auth` → `models` → [`infer endpoint list`](../arkcli-infer-endpoint/SKILL.md) → 没有就 [`+deploy`](../arkcli-deploy/SKILL.md) | 核心资源是 Endpoint，不是 +chat/+gen |
+| 模型精调 / SFT / LoRA / DPO / RL / 训练任务 / `mcj-*` | `auth` → [`arkcli-train-finetune`](../arkcli-train-finetune/SKILL.md) | **控制面 SSO/STS**；不是 `+chat`/`+gen`，也不走 Agent Plan 数据面；数据走 TOS 或 `--train-file` 自动上传 |
 | 排查存量调用 / 看消耗 | `auth` → [`usage`](../arkcli-usage/SKILL.md) | — |
 | 本地 AI Agent 集成 | [`+connect`](../arkcli-connect/SKILL.md) | — |
 | 明确查官方文档 / 读取文档 URL / 业务 Skill 缺少产品知识 | [`docs`](../arkcli-docs/SKILL.md) | 搜索后读取正文；不替代资源操作、鉴权、诊断和 CLI help |

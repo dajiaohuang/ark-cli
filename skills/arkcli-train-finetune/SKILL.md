@@ -7,10 +7,23 @@ description: 使用 ArkCLI 创建、查询和管理模型精调训练任务，�
 
 先读取 [`../arkcli-shared/SKILL.md`](../arkcli-shared/SKILL.md)，遵循认证、输出、安全和二次确认规则。
 
+## 执行面与凭证（先看）
+
+- 本 skill 的 `arkcli train finetune *`、`arkcli dataset *`、`arkcli models finetune-config *` 都属于**控制面**：
+  使用 SSO 派生的 STS，先执行 `arkcli auth status`；未登录按 shared 的认证闸门登录。
+- 控制面命令不消费数据面 `--api-key` / `--base-url`。显式传入会 fail-fast
+  （`--api-key only applies to data-plane commands; ... is control-plane or local`）；`.env` / `ARK_API_KEY`
+  只能用于推理数据面，**不能用于训练创建或 TOS 上传**。
+- SFT / LoRA / DPO / RL 是训练任务，不是 Agent Plan 模型调用；不要转 `+chat` / `+gen`，也不要按 Agent Plan
+  模型或套餐额度选型。训练费用与能力以 `train finetune pricing` / `capability get` 的实时结果为准。
+- 本地 `--train-file` / `--validation-file` 会由 ArkCLI 自动上传到 Ark 托管 TOS，最终请求使用
+  `TosBucket` / `TosPaths`；不需要用户先手工上传，也不要把本地路径直接当后端数据地址。
+
 ## 适用场景与能力边界
 
 - 校验训练/验证数据、创建精调任务：读取 [`references/create.md`](references/create.md)
 - 列出或筛选任务：读取 [`references/list.md`](references/list.md)
+- 下载某任务实际使用的训练集/验证集：读取 [`references/download.md`](references/download.md)
 - 查询、观察或操作一个指定任务：读取 [`references/manage.md`](references/manage.md)
 - 根据指标选择 step、导出产物并部署：读取 [`references/export-deploy.md`](references/export-deploy.md)
 - 精调任务创建或预检所需的本地/TOS 训练、验证数据校验留在本 skill，直接调用 `arkcli dataset validate`；不要因为命令路径属于 `dataset` 就切换 skill。
@@ -93,6 +106,7 @@ description: 使用 ArkCLI 创建、查询和管理模型精调训练任务，�
 - 同时传入 `train finetune metrics --from-step` 和 `--to-step` 时，`to-step` 必须严格大于 `from-step`；非法区间应在查询指标名称或曲线前停止。
 - `train finetune pricing --billing-method token` 按 Token 计费项查询；`instance` 必须提供精确的 `--model-version` 和 `--type`，并保持超参与后续创建一致。实例结果只有 `price_complete=true` 才能作为完整小时价范围；否则必须报告 `missing_flavor_ids`。
 - 使用稳定资源组前，必须用与 create 完全相同的模型、版本、训练类型和超参数执行 `train finetune resource-group list`。只有 `allowed=true` 且 `matched=true` 的资源组 ID 才能传给 `create --resource-group`；ID 是不透明字符串，必须按查询结果原样传入；有多个匹配项时让用户选择。
+- 用户说“我的 / 我创建的 / 本人提交的”精调任务时，`train finetune list` 必须加 `--mine`（服务端 `sys:ark:createdBy` 过滤）；不要先拉全账号再本地猜创建人。
 
 ## 守卫与通用执行规则
 

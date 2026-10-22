@@ -36,7 +36,7 @@
 | 固定画面 | prompt 保留视觉要求；`camera_fixed` 支持时才额外加 flag，验收也要检查镜头变化 |
 | 视频时长/帧数 | 先查 duration/frames 能力与覆盖关系，不同时堆参数后假设两者都生效 |
 | 一张多格图 | 一张图片 + prompt 指定格子布局；不是默认 sequential 多文件 |
-| 输入参考/首尾帧 | 输入顺序和 first/last/ref 角色必须对应用户素材，不把参考图误作首帧 |
+| 输入参考/首尾帧 | 先确定单图首帧 / 首尾帧 / 多参考模式，再为每张图显式标 `first_frame` / `last_frame` / `reference_image`；不把参考图误作首帧，也不把首帧与多参考混在一次请求 |
 | 视频续写 | `reference_video` 明确源视频，人物图只作 `reference_image`；ratio 逐值服从精确模型/EP 能力，不固定替换成 `adaptive` |
 | 只要 URL | 显式 `--save-to=""`；不能用省略代替空串，不能声称已保存本地 |
 
@@ -75,6 +75,10 @@ CLI 的保守兜底值是模型推荐值。目录支持而本地拒绝时记录�
 用户要修 HTTP/SDK 代码时，先看其实际请求，而不是把一条 `+gen` 命令改写成 JSON：CLI flag、模型参数目录、HTTP payload 各有自己的字段名、层级和默认处理。
 
 - `--input` 是 CLI 输入语法，`@本地文件`、`first:` / `ref:` 等需要 CLI 转换；不能把这些字符串原样塞进 HTTP 请求当服务端可读素材。
+- CLI 的 `first:` / `last:` / `ref:` 会补成 wire role，但 Agent 生成命令时应优先写 SDK 完整名
+  `first_frame:` / `last_frame:` / `reference_image:` / `reference_video:` / `reference_audio:`，避免把本地简写
+  误当成服务端字段。Seedance 2.0 实测首帧/首尾帧模式与多参考模式互斥；需要混用时必须有该模型/Endpoint 的
+  明确能力依据，不能靠提交付费任务反复试。
 - `--wait`、`--save-to`、`--open` / `--no-open` 是客户端轮询/下载/打开行为，不是 HTTP 模型参数。图片的 image union 与视频的 `content[]` 结构也不能互抄。
 - 逐项核对真实 API 路径、精确模型/Endpoint、脱敏鉴权上下文、request body、素材可访问性及 response/error/request_id。字段映射以目标 API/SDK 契约为准，不凭 CLI flag 的连字符机械改下划线。
 - `+gen` 成功只能证明那次 CLI 工作流成功；CLI 可能补了默认值、转了素材、选了调用上下文，**不能据此声称用户原 HTTP/SDK 代码已经正确**。应指出两份请求的实际差异；未检查用户请求就明确尚未定位，不额外生成一个收费任务代替代码诊断。

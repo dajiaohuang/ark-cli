@@ -20,6 +20,33 @@ Platform / Coding Plan / Coding Plan Team 生成使用已部署的 `ep-*` 和后
 也不强制给所有模型名追加 `primary_version`。示例展示 flag 语法，不是可复制到任何 Profile/模型的固定组合；
 执行时用本轮选定的 `$MODEL`，并按 [`intent-and-validation.md`](intent-and-validation.md) 检查能力与成品。
 
+## 视频输入角色：首帧 / 首尾帧 / 多参考（必读）
+
+Seedance 2.x 等服务端会严格校验 `content[].role`，不同模式不能靠“第 1 张图默认首帧”兜底。
+先按用户意图确定一种模式，再写角色：
+
+| 用户意图 | 推荐写法 | 说明 |
+|---|---|---|
+| 单图首帧（I2V） | `--input first_frame:@start.jpg` | 图片从这一帧开始运动 |
+| 首帧 + 尾帧 | `--input first_frame:@start.jpg --input last_frame:@end.jpg` | 两张图分别约束开头和结尾 |
+| 多参考（人物/服装/场景/风格） | `--input reference_image:@ref1.jpg --input reference_image:@ref2.jpg` | 每张都是参考图，第一张**不是**首帧 |
+| 参考视频（R2V / 续写） | `--input reference_video:@ref.mp4`，可再加 `--input reference_image:@person.jpg` | 视频必须显式 `reference_video` |
+
+硬规则：
+
+- Agent 生成命令时优先使用 SDK 完整角色名：`first_frame:` / `last_frame:` / `reference_image:` /
+  `reference_video:` / `reference_audio:`。`first:` / `last:` / `ref:` 是 CLI 别名，虽然会补成对应
+  wire role，但不要在同一命令里混用两套写法，也不要依赖服务端从位置猜语义。
+- 带视频或音频的请求里，每个素材都必须显式带 role；图片缺 role 会被数据面 400 拒绝
+  （`role must be specified for image contents`），视频缺 role 会被拒
+  （`reference media mode requires video role to be reference_video`）。
+- Seedance 2.0 实测“首帧/首尾帧模式”和“多参考模式”互斥。不要在一次请求里同时放 `first_frame` 和
+  `reference_image`；模型/服务端能力明确允许时除外。混合模式会被参数校验拦截，不会创建任务。
+- 多图但用户没说哪张是首帧/尾帧时，先确认角色再提交；不要默认第一张就是首帧。
+- 用户说“参考这张图”时默认 `reference_image:`；只有“从这张图开始 / 这张作为首帧”才用
+  `first_frame:`。不要靠提交付费任务反复试角色，先读模型 `supported_params` / `description`，
+  需要核对命令时只做本地 `--dry-run`。
+
 ```bash
 # 1) 文生图 (T2I) — seedream 模型
 arkcli +gen --model doubao-seedream-5-0-260128 "简约商务笔记本电脑，深蓝色，白色背景"
@@ -40,19 +67,19 @@ arkcli +gen --model doubao-seedream-5-0-260128 --image-count 4 "未来城市天�
 # 3) 文生视频 (T2V)
 arkcli +gen --model doubao-seedance-2-0-260128 "一只柴犬在樱花树下奔跑，慢镜头"
 
-# 4) 图生视频 / 首帧到视频 (I2V) — 第 1 张图默认作为首帧
+# 4) 图生视频 / 首帧到视频 (I2V) — 推荐显式 first_frame
 arkcli +gen --model doubao-seedance-2-0-260128 \
-  --input @first.jpg \
+  --input first_frame:@first.jpg \
   "镜头缓慢拉远，主体保持不动"
 
-# 显式指定 first / last 帧
+# 首尾帧：显式指定 first_frame / last_frame
 arkcli +gen --model doubao-seedance-2-0-260128 \
-  --input first:@start.jpg --input last:@end.jpg \
+  --input first_frame:@start.jpg --input last_frame:@end.jpg \
   "从这两帧之间生成补间动画"
 
-# 5) 参考视频 (R2V) — 把视频当作参考素材
+# 5) 参考视频 (R2V) — 视频必须显式 reference_video
 arkcli +gen --model doubao-seedance-2-0-r2v-260128 \
-  --input ref:@reference.mp4 \
+  --input reference_video:@reference.mp4 \
   "保持参考视频的运动轨迹，替换主角为机器人"
 
 # 5b) 视频续写 — reference_video 本地/远程都可；本地会先上传 TOS 换成预签名 URL
@@ -72,7 +99,7 @@ arkcli +gen --model "$MODEL" --modality video \
 
 # 6) 参考音频 — 让视频节奏与音频同步
 arkcli +gen --model doubao-seedance-2-0-260128 \
-  --input ref:@beat.mp3 \
+  --input reference_audio:@beat.mp3 \
   "随节拍切换的城市夜景蒙太奇"
 
 # 进阶 flag — 图片任务
@@ -161,7 +188,7 @@ arkcli +gen --model ep-... --api-key '<temporary-key>' "一只柴犬奔跑"
 | `<prompt>` | 是 | positional | 生成提示词（位置参数，放在命令最后） |
 | `--model` | 否：可 fallback 到 active profile 的 `Resources.<modality>.Default` | string | 本次 Profile/凭证兼容的调用 ID：套餐合法别名、当前数据面允许的模型 ID 或 `ep-*`。能力查询规范名不能替换收费路径中的调用 ID。默认为空时先 `resources list`；一次生成不自动设置 default。 |
 | `--modality` | 见说明 | string | 生成模态：`image` 或 `video`。真实调用按 `显式值 > ArkModels output_modalities > FoundationModel task types > unknown` 解析；Client Preview 不联网，按 `显式值 > 已知 seedream/seedance 名称 > unknown` 本地判断，未知模型或 Endpoint 必须显式指定 |
-| `--input` | 否 | string（可重复） | 参考素材引用，按出现顺序进入 content[]。本地文件用 `@<path>`，远程使用 `https://...` / `tos://...`。可选 role 前缀 — 简写：`first:` `last:` `ref:` `none:`；SDK 显式：`first_frame:` `last_frame:` `reference_image:` `reference_video:` `reference_audio:`。`first:`/`last:`/`ref:` 都会补出对应 wire role（`ref:` 与素材类型无关，按类型落成 `reference_image`/`reference_video`/`reference_audio`）；只有**完全不带前缀**才留空 role、由服务端按位置推断。带视频的请求里，视频必须显式 `reference_video`，同请求内的图片也必须带 role，否则整条请求被数据面 400 拒绝。**重要**：本地文件（图/视频/音频）统一上传到 TOS 后以预签名 https URL 提交，后端在提交时抓取；`tos://<bucket>/<key>` 会被原地签名。上传要求账号已开通 TOS，未开通时提交前失败并提示 `tos_not_activated`。**图片任务**折叠为 image union；**视频任务**第 1 张图默认首帧，其它图为参考图 |
+| `--input` | 否 | string（可重复） | 参考素材引用，按出现顺序进入 content[]。本地文件用 `@<path>`，远程使用 `https://...` / `tos://...`。Agent 生成命令优先用 SDK 完整角色名：`first_frame:` `last_frame:` `reference_image:` `reference_video:` `reference_audio:`；`first:` `last:` `ref:` `none:` 是 CLI 别名，会补出对应 wire role（`ref:` 按素材类型落成 `reference_image`/`reference_video`/`reference_audio`）。只有**完全不带前缀**才留空 role、由服务端按位置推断；裸 `@<path>` 只在单图 I2V 且模型接受位置推断时使用，不能用来表达多参考。带视频的请求里，视频必须显式 `reference_video`，同请求内的图片也必须带 role，否则整条请求被数据面 400 拒绝。首帧/首尾帧与多参考是否可混用以精确模型的 `supported_params` / `description` 为准；Seedance 2.0 实测互斥。**重要**：本地文件（图/视频/音频）统一上传到 TOS 后以预签名 https URL 提交，后端在提交时抓取；`tos://<bucket>/<key>` 会被原地签名。上传要求账号已开通 TOS，未开通时提交前失败并提示 `tos_not_activated`。**图片任务**折叠为 image union；**视频任务**按用户意图显式标注角色 |
 | `--inline-local` | 否 | bool | 把本地 `--input` 文件退回 base64 data URL 内联，不走 TOS 上传。**只对图片有效**：内联图片参考实测生效；视频/音频则被数据面**直接拒绝**（HTTP 400，`reference_video must be provided as a web url`，任务不会创建）。用于 TOS 不可用或刻意避免上传的场景，不要作为默认 |
 | `--name` | 否 | string | 可读任务名覆盖；不能作为服务端幂等键，也不能依赖 `gen list` 按名称恢复 task ID |
 | `--version` | 否 | string | 模型版本覆盖 |
@@ -243,6 +270,9 @@ arkcli +gen --model ep-... --api-key '<temporary-key>' "一只柴犬奔跑"
 | `model is required` | 未指定 `--model` | 必须指定模型名 |
 | `Error code: 404 - InvalidEndpointOrModel.NotFound` | 资源不存在、当前身份不可见或调用 ID 不属于当前 lane；不能仅凭 404 认定缺版本 | 同一 Profile 下用 `resources list/resolve`、必要时 `models get` 核对；保留合法套餐别名，不自动改版本/计费路径 |
 | `cannot determine generation modality` | Endpoint/模型元数据无法唯一识别 image/video，且未传 `--modality` | 先看 `resources resolve <ep>` 的 warnings；根据用户意图显式补 `--modality image|video` |
+| `role must be specified for image contents` | 多图 / 带视频的请求里有图片没带 role | 每张图补 `first_frame:` / `last_frame:` / `reference_image:`，不要靠位置默认 |
+| `reference media mode requires video role to be reference_video` | 请求带视频但视频未标 role | 视频改用 `reference_video:`；辅助图片用 `reference_image:` |
+| 首帧/首尾帧与多参考混用被拒 | 同时传了 `first_frame` 和 `reference_image` | 按用户意图二选一：首帧模式用 first/last，多参考模式全部 reference_image |
 | 缺少 prompt | 未提供位置参数 | prompt 是必填的位置参数 |
 | `image generation failed: InvalidParameter` | 图片尺寸像素数过小等参数错误；常见于 `1024x1024` 这类尺寸 | 改用 `1920x1920` 及以上尺寸，必要时加 `--debug` 看底层错误 |
 | 视频迟迟没结果 | 视频默认**异步**，返回的是 `task_id` + `status: queued`（**非失败**） | 用 `arkcli gen get <task_id>` 轮询到 `succeeded`；**不要**重提 `+gen`（会建新任务）。要同步等可用 `+gen --wait` |
@@ -253,7 +283,7 @@ arkcli +gen --model ep-... --api-key '<temporary-key>' "一只柴犬奔跑"
 - prompt 是位置参数，放在命令最后，建议用引号包裹
 - 模型名、模型版本名、DisplayName、Endpoint 名称和 `ep-*` ID 是不同标识；路由能力只认结构化元数据，不认品牌前缀
 - `--input` 是数据驱动的多模态入口：图扩展名走图通道，视频扩展名走视频通道，音频扩展名走音频通道；其他扩展名在视频任务里**会被静默丢弃**（content-generation 没有 input_file slot），在图片任务里也不会被识别为参考图
-- 视频任务的多 `--input` 顺序是有意义的：第一张图默认作为 first frame；如果要表达"这张是参考素材，不是首帧"，用 `ref:` 前缀
+- 视频任务的多 `--input` 不是“第一张永远是首帧”：先按「视频输入角色」确定模式，再为每个素材显式标注 `first_frame:` / `last_frame:` / `reference_image:` / `reference_video:` / `reference_audio:`。只有单图 I2V 且模型接受位置推断时，才可省略 role
 - 图片生成建议从 `1920x1920` 起步，`1024x1024` 这类尺寸当前可能直接被后端拒绝
 - 图片生成通常几秒完成，视频生成可能需要数十秒到数分钟
 - **预签名 URL 24h 失效**：`output_url` 只能在短时间内 HTTP `GET` 下载（注意不是 `HEAD`，签名绑定 method）。需要持久保存就依赖 `local_path` 或及时下载

@@ -2,6 +2,10 @@
 
 `--train-file` 与 `--validation-file` 都会在在线 `--estimate` 或真实提交前上传到 TOS；最终 `data.TrainingSet` / `data.ValidationSet` 使用 `TosBucket` 和 `TosPaths`，不把本地路径交给服务端。`uploaded_files` 包含两组上传记录，训练 token 预估只使用训练集。即使训练集已是 TOS 引用，本地验证集也会上传；上传失败时停止提交。`--estimate` 会上传文件，但不会创建训练任务。
 
+> **执行面：** `train finetune create` / `--estimate` 都是控制面命令，认证走 SSO/STS；不要传
+> `--api-key` / `--base-url`（控制面会 fail-fast）。`.env` 里的 API Key 只能用于数据面推理，不能用于训练创建或
+> TOS 上传。本地训练/验证文件由 CLI 通过 `--train-file` / `--validation-file` 自动上传到 Ark 托管 TOS。
+
 创建输出仍为 `id` 和 `url`；火山链接继续使用 `console.volcengine.com`。
 
 - 参考以下顺序完成创建；当用户提供信息不足时，查询并给出建议。

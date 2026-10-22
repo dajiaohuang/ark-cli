@@ -14,6 +14,7 @@ arkcli train finetune list [flags]
 | `--phase` | 按阶段过滤，可重复 |
 | `--customization-type` | 按后端训练类型过滤，可重复；不确定枚举时查 `--help` |
 | `--create-time-after`、`--create-time-before` | 按创建时间过滤，使用 RFC3339 |
+| `--mine` | 只查当前 SSO 子用户创建的任务；服务端按 `TagFilters=[{Key:"sys:ark:createdBy", Values:["IAMUser/<uid>/<name>"]}]` 过滤 |
 | `--page-size`、`--page-number` | 手动分页；页码默认 1 且必须 `>=1`，每页默认 100 且必须在 `1-100` |
 | `--page-all`、`--page-limit` | 自动分页；必须设置合理上限 |
 | `--sort-by`、`--sort-order` | 排序 |
@@ -33,6 +34,7 @@ arkcli train finetune list --help
 - 任务阶段
 - 训练方法
 - 创建时间范围
+- 创建人：用户说“我的 / 我创建的 / 本人提交的”时必须加 `--mine`；不要先拉全账号再本地猜创建人
 - 分页和排序
 
 3. 用户要求“全部”时使用当前 CLI 支持的自动分页参数，并设置合理页数上限。不要无界抓取。
@@ -55,12 +57,16 @@ arkcli train finetune list --help
 arkcli train finetune list
 arkcli train finetune list --name <keyword>
 arkcli train finetune list --phase <phase>
+arkcli train finetune list --mine --page-all --page-size 100
 arkcli train finetune list \
   --create-time-after <RFC3339> \
   --create-time-before <RFC3339>
 ```
 
 阶段和训练方法枚举必须从当前 `--help` 获取，不要使用静态清单。
+
+`--mine` 依赖 SSO 子用户身份和 `sys:ark:createdBy` 资源标签。
+不要伪造空 tag 或退化成全账号结果冒充“我创建的”。
 
 ## 时间处理
 

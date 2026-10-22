@@ -114,6 +114,23 @@ explicit --modality > output_modalities > task types > unknown
 - 图生图 / image-edit / 加参考图；图生视频(I2V)；参考视频(R2V)；参考音频
 - "用这张图当首帧生成视频" / "保持这个参考视频的运动"
 
+## 视频输入角色速查（首帧 / 首尾帧 / 多参考）
+
+Seedance 2.x 对 `content[].role` 严格校验，**不要靠“第 1 张图默认首帧”猜模式**。先按用户意图选一种：
+
+| 意图 | 写法 |
+|---|---|
+| 单图首帧 | `--input first_frame:@start.jpg` |
+| 首帧 + 尾帧 | `--input first_frame:@start.jpg --input last_frame:@end.jpg` |
+| 多参考（人物/服装/场景/风格） | `--input reference_image:@ref1.jpg --input reference_image:@ref2.jpg` |
+| 参考视频 / 续写 | `--input reference_video:@ref.mp4`，可再加 `--input reference_image:@person.jpg` |
+
+- Agent 生成命令优先用完整角色名 `first_frame:` / `last_frame:` / `reference_image:` / `reference_video:` / `reference_audio:`；`first:` / `last:` / `ref:` 是别名，不要混用，也不要依赖服务端按位置推断。
+- 带视频/音频的请求里每个素材都必须带 role；图片缺 role 会 400（`role must be specified for image contents`）。
+- Seedance 2.0 实测首帧/首尾帧模式与多参考模式互斥；不要同时传 `first_frame` 和 `reference_image`，除非精确模型能力明确允许。
+- 多图但用户没说哪张是首帧/尾帧时，先确认角色再提交；**不要默认第一张就是首帧**。
+- 用户说“参考这张图”默认 `reference_image:`；只有“从这张图开始 / 作为首帧”才用 `first_frame:`。不要提交付费任务反复试角色，先读能力，必要时只做本地 `--dry-run`。
+
 ## 工作流总览
 
 ```text
