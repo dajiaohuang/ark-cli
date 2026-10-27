@@ -66,6 +66,14 @@ arkcli auth status
 arkcli +connect
 ```
 
+如只需 CLI，可在本次安装时跳过 Skills 下载和自动安装：
+
+```shell
+ARKCLI_SKIP_SKILLS=1 npm i -g @volcengine/ark-cli@latest
+```
+
+该环境变量统一适用于所有产品的内外网 npm 安装，只有值为 `1` 时生效；默认行为不变。CLI 二进制仍正常下载、校验、安装和初始化，包内已有的 Skills 内容不会被移除。开关不保存配置、不删除已有 Skills，之后仍可手动运行 `arkcli +connect`。`ARKCLI_SKIP_POSTINSTALL=1` 会跳过整个安装钩子，不能用于只跳过 Skills。
+
 无浏览器环境，例如远程开发机、CI 或 Agent 沙箱：
 
 ```shell

@@ -1,5 +1,9 @@
 # Agent
 
+Vision / Ultra 视觉创作类型见 [Vision Agent](vision-agent.md)：有独立的模型来源、开白和工具要求，不沿用普通 Agent 的创建默认值。
+
+`--base-agent` 是基座类型，不是 `agent-...` 资源 ID。create / `+new-agent` 支持此参数；get/list/versions 的 JSON/YAML 保留 `BaseAgent`，table 显示 `base_agent`。`+new-agent --fork` 保留源类型，显式 `--base-agent` 才覆盖；旧响应缺少该字段时不臆造类型。update 和 Session override 不支持切换基座类型。
+
 ## 创建 Agent SOP
 
 用户说“创建一个 XXX agent / 智能体”时按下面链路执行，不要只拼一个 `agent create`。
@@ -26,6 +30,8 @@ arkcli agent vault oauth-provider list --limit 100 --format json
 ```
 
 ## 模型选择
+
+Vision / Ultra 视觉主模型使用 `agent model list --usage vision`，不要套用本节的普通 ArkModels 筛选；规则见 [Vision Agent](vision-agent.md)。
 
 配置模型的 `speed/thinking/reasoning_effort/service_tier` 时，先按[模型参数 metadata](model-config.md)查询目标模型的可选值与默认值；不要把其他模型的选值当作通用枚举。
 
@@ -295,7 +301,8 @@ arkcli agent model list --usage tool --refresh-cache --format json
 | 参数/输出 | 含义 |
 | --- | --- |
 | `--usage agent` | 默认用途：Agent 主模型，按版本级 `ep_agent.support` 筛选，保持原有行为。 |
-| `--usage tool` | 工具模型，按版本级 `epa_tool_model.support` 筛选，不要求同时支持 `ep_agent.support`。其他 usage 值不支持。 |
+| `--usage tool` | 工具模型，按版本级 `epa_tool_model.support` 筛选，不要求同时支持 `ep_agent.support`。 |
+| `--usage vision` | 仅火山：读取前端 Vision 独立目录，不走 ArkModels，不使用下述缓存或 query/primary-only/include-all；详见 [Vision Agent](vision-agent.md)。 |
 | `--include-all` | 跳过所选用途的支持性过滤，用于排障；结果不都是可选模型。 |
 | `--primary-only` | 在完整缓存上本地只保留服务端标记为主版本的条目；主模型和工具模型查询都默认不加，只有用户明确要求主版本时使用，以免漏掉支持对应用途的非主版本。 |
 | `--name` | 本地按 `name` 或带版本的 `model` 做不区分大小写的子串匹配。 |

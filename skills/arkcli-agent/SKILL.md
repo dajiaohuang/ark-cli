@@ -18,6 +18,8 @@ metadata:
 
 ## 创建 Agent 的最小决策表
 
+用户要求 Vision / Ultra / 视觉创作 Agent，或召回资料提到 `ultra_vision_agent_preview` 时，先读 [Vision Agent](references/vision-agent.md)，不要套用下方普通 Agent 主模型与默认工具流程。仅要求“会生图”不等于指定 Vision 类型。
+
 仅咨询参数含义、命令用法或解读已有完整 stdout 时，能从文档与当前证据回答就直接回答，
 不为概念解释发起 live 查询。只有账号当前配置、资源状态或模型实时可用性等问题才查服务端。
 已拿到完整结果时复用它；名称搜索/grep 无命中不等于资源不存在，先确认目标是 Agent、
@@ -64,6 +66,7 @@ Environment 还是 Session。用户提供明确 ID 时直接查对应资源，�
 | 启用 / 关闭 Todo 任务计划工具 | `agent agent create/update --tool`；非基础 toolset、不需要 Models | [`references/todo-write.md`](references/todo-write.md) |
 | 复制已有 Agent 并改名 / 局部覆盖配置 | `arkcli +new-agent --fork <agent-id> [--name <new-name>]` | [`references/agent.md`](references/agent.md#复制-agent) |
 | 为创建 Agent 选择可用模型 | `arkcli agent model list` | [`references/agent.md`](references/agent.md#模型选择) |
+| 查询 Vision / Ultra 视觉主模型（仅火山） | `arkcli agent model list --usage vision` | [`references/vision-agent.md`](references/vision-agent.md) |
 | 为生图/生视频等支持模型绑定的工具选择模型 | `arkcli agent model list --usage tool` | [`references/agent.md`](references/agent.md#查询工具模型与缓存) |
 | 查询模型运行参数的可选值和默认值 | `arkcli agent model config <foundation-model-name>` | [`references/model-config.md`](references/model-config.md) |
 | 创建 Agent 时选择 Skill | 默认先查 custom，未命中再查 market；用户明确指定 market 时跳过 custom | [`references/skills.md`](references/skills.md) |
@@ -91,6 +94,7 @@ Environment 还是 Session。用户提供明确 ID 时直接查对应资源，�
 
 ## 模型查询：主模型与工具模型
 
+- Vision / Ultra 主模型使用 `--usage vision`，与前端独立配置对齐，不能用普通 Agent 或工具目录替代。默认选择、环境和筛选边界见 [Vision 模型查询](references/vision-agent.md)。
 - 默认 `--usage agent` 按 `ep_agent.support` 选择主模型；`--usage tool` 按具体版本的 `epa_tool_model.support` 选择工具模型，两者不取交集。两种查询都不默认加 `--primary-only`，也不默认按 `primary_version` 排除候选；只有用户明确要求“只看主版本”时才加。
 - 工具候选使用返回的 `items[].model`，不是内部 `id`（如 epm-*）。只给支持绑定的工具配置 `Models`；字段含义与完整 Tools 替换示例见 [工具模型绑定](references/agent.md#工具绑定模型仅部分工具支持)。
 - 两种用途共享 5 分钟全版本 ArkModels 缓存，输出 `cache.source/fetched_at/expires_at`；只有需要刷新时才加 `--refresh-cache`，不要每次查询都强刷。失败冷却为 1 分钟，强刷也不能绕过；错误不等于空候选。

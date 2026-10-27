@@ -190,7 +190,22 @@
 - list 成功但 create 返回 404：区分控制面与数据面，保留错误码和 RequestId；不直接认定服务未发布，不循环试写或猜 raw API。
 - 已选 agent model list 返回的模型：Dream 直接使用模型 ID，不额外创建 Endpoint，不把 BYOK Model 对象传入 Dream。
 - create 超时无 ID，或 wait completed 但只读到输出文件列表：前者先核对已有任务、不重复创建；后者只报告完成与文件元数据，未读内容不得声称内容验证通过。
-# 独立开通 MA
+## Vision 类型与配置保真
+
+- Vision 查询返回 `model_access.status=requires_whitelist`：说明是当前账号的模型/版本可见性问题，展示该项申请链接与模型 ID，不建议 agent activate/models activate 替代开白，不自动提交申请或替换模型。
+- Vision 查询返回 `unknown` 或旧版本缺少 model_access：不把未知当作未开白或已开白，区分查询失败与正常空结果。visible 也不声称已完成模型计费开通或推理验证。
+
+- “创建一个会生图的 Agent”：不自动选 ultra_vision_agent_preview，先区分普通工具能力和明确 Vision 类型。
+- 用户明确要求 Ultra、但未提供主模型：读 vision-agent.md，执行 `agent model list --usage vision`；按返回的完整 ID 和 default_model 选择，不用普通 ArkModels 候选、不猜模型、不遍历源码。stg 查询不得回退 prod；失败与空目录分别说明。
+- 已确认 Vision 模型和生图模型：构造完整两组工具、high 参数、当前必需工具；只预览时零 API 调用，真实执行仍需本轮确认。
+- 复制 Vision / 旧 multimodal 类型：BaseAgent 和 Models 均保留；显式基座覆盖优先，普通 Agent 未请求多模态仍保留原默认工具。
+- 用户仅要求预览复制：`+new-agent --help` 没有 `--dry-run`，只读取源 Agent 并说明拟复制配置，不真实创建、不伪造 preview。
+- 创建返回生图工具默认模型未配置：查询真实工具候选并核对输出模态，确认后补齐 image_generate.Models；不更换主模型、不重放原请求、不执行 MA 开通。成功后回读完整绑定。
+- get/list/versions：JSON/YAML 回显 BaseAgent；不能只凭 table 摘要判断 Models 丢失。
+- FunctionNotAllowed：区分 Vision 开白与 MA 开通，不切账号、不降级类型、不重复创建。
+- 不将火山 Vision 模板套用到其他产品。未执行线上生图不得报告生图端到端通过。
+
+## 独立开通 MA
 
 - 用户只要求开通 MA：选择 `agent activate`，不创建 Agent 或 Session，不查询或开通模型。
 - 非交互且尚未授权：不自行设置 `ARKCLI_ALLOW_HEADLESS_ACTIVATION`；解释账号级计费能力开通并等待确认，不能用 `--yes` 绕过。
