@@ -62,11 +62,11 @@ DSH applies bundle patches before a profile's `cordis.patch.yml`. A row patch re
 
 DSH 会先应用 bundle patch，再应用 profile 的 `cordis.patch.yml`。行补丁会整体替换目标行的 `config`，不会深度合并。如果 profile 已经有带自定义 provider 的 `llm-pi-ai` 行，后应用的配置会替换本 bundle 的 `providers`，Ark 路由因此不会显示。请保留现有 provider，并将本 bundle [`cordis.patch.yml`](./cordis.patch.yml) 中的 Ark provider 条目合并到同一个 `config.providers` 映射中。
 
-## Agent Plan model discovery
+## Model discovery / 模型列表
 
-The Agent Plan base URL does not provide the `/models` endpoint used by DSH's “Fetch available models” action. The plugin includes a static Agent Plan model list in `cordis.patch.yml`; select one of those entries in **Settings → Models** instead of fetching a list from the endpoint.
+The plugin ships static model entries in `cordis.patch.yml`; use those entries in **Settings → Models**. DSH's “Fetch available models” flow is not supported across all Ark routes: the reported Agent Plan endpoint returns 404 for `/models`, and Coding Plan or postpaid discovery can return 401/404 even when inference works. Do not treat a model-discovery failure alone as evidence that an API key is invalid; select a bundled model entry instead.
 
-Agent Plan 的 base URL 不提供 DSH「获取可用模型」操作所需的 `/models` 端点。插件在 `cordis.patch.yml` 中预置了 Agent Plan 模型列表，请直接在 **Settings → Models** 中选择，不要从该 endpoint 拉取模型列表。
+插件在 `cordis.patch.yml` 中预置了模型条目，请直接在 **Settings → Models** 中选择。DSH「获取可用模型」操作并不适用于所有 Ark 路由：反馈显示 Agent Plan endpoint 的 `/models` 返回 404，Coding Plan 或后付费路由的模型发现也可能在推理正常时返回 401/404。不要仅凭模型发现失败判断 API Key 无效；请改用预置的模型条目。
 
 ## Requirements / 前置条件
 
